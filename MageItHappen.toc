@@ -1,10 +1,10 @@
 ## Interface: 110000
 ## Title: MageItHappen
-## Notes: TTD Sync & Mage Combat Suite
-## Author: YourName
-## Version: 1.0
+## SavedVariables: MageItHappenDB
 
 Core/TTD_Core.lua
 Core/Logic_CDSync.lua
 UI/Mage_Castbar.lua
+Modules/Damage_Summary.lua
+Config.lua
 Main.lua
