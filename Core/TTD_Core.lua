@@ -1,5 +1,5 @@
 local addonName, addonTable = ...
-TTD_Core = {}
+local TTD_Core = {}
 
 -- Configuration
 local SAMPLE_SIZE = 15 
@@ -15,7 +15,6 @@ function TTD_Core.OnUpdate()
         local health = UnitHealth("target")
         local maxHealth = UnitHealthMax("target")
         
-        -- Only track if target is alive and valid
         if health > 0 and maxHealth > 0 then
             table.insert(healthHistory, {h = health, t = now})
             if #healthHistory > SAMPLE_SIZE then
