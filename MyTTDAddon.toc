@@ -1,9 +1,10 @@
 ## Interface: 110000
-## Title: My TTD & Sync Logic
-## Notes: Core logic for Trinket/TTD Synchronization
+## Title: MageItHappen
+## Notes: TTD Sync & Mage Combat Suite
 ## Author: YourName
 ## Version: 1.0
 
-TTD_Core.lua
-Logic_CDSync.lua
+Core/TTD_Core.lua
+Core/Logic_CDSync.lua
+UI/Mage_Castbar.lua
 Main.lua
