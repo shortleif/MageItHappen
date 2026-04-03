@@ -3,37 +3,38 @@ local Castbar = CreateFrame("Frame", "MageCustomCastbar", UIParent, "BackdropTem
 
 -- 1. Disable the Default Blizzard Castbar
 local function DisableBlizzardCastbar()
-    -- Hide and unregister the player castbar
     if PlayerCastingBarFrame then
         PlayerCastingBarFrame:UnregisterAllEvents()
         PlayerCastingBarFrame:Hide()
-        PlayerCastingBarFrame.Show = function() end -- Prevent it from ever showing
+        PlayerCastingBarFrame.Show = function() end 
     end
 end
-
--- Run the disable function
 DisableBlizzardCastbar()
 
--- 2. Configuration (Minimalist Style)
-local WIDTH, HEIGHT = 250, 20
+-- 2. Configuration & Dynamic Sizing
+local HEIGHT = 18 
 local TICK_COLOR = {1, 1, 1, 0.4} 
 
--- Setup Visuals
-Castbar:SetSize(WIDTH, HEIGHT)
-Castbar:SetPoint("CENTER", 0, -150)
+-- Use the exported width from Cooldown_Tracker.lua
+local dynamicWidth = addonTable.shortRowWidth or 250
+Castbar:SetSize(dynamicWidth, HEIGHT)
+
+-- Anchor just below the Short CD icon row
+Castbar:SetPoint("TOP", _G["MIH_ShortCDRow"], "BOTTOM", 0, -2)
+
 Castbar:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8", 
     edgeFile = "Interface\\Buttons\\WHITE8X8", 
     edgeSize = 1
 })
- Castbar:SetBackdropColor(0.1, 0.1, 0.1, 0.7) 
- Castbar:SetBackdropBorderColor(0, 0, 0, 1)
+Castbar:SetBackdropColor(0.1, 0.1, 0.1, 0.7) 
+Castbar:SetBackdropBorderColor(0, 0, 0, 1)
 
 -- The Status Bar (Flat Texture)
 Castbar.Bar = CreateFrame("StatusBar", nil, Castbar)
 Castbar.Bar:SetPoint("TOPLEFT", 1, -1)
 Castbar.Bar:SetPoint("BOTTOMRIGHT", -1, 1)
-Castbar.Bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8") -- Flat Texture
+Castbar.Bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8") 
 Castbar.Bar:SetStatusBarColor(0.2, 0.5, 1)
 
 -- Text Elements
@@ -89,7 +90,8 @@ Castbar:SetScript("OnEvent", function(self, event, unit)
         if tickCount > 0 then
             for i = 1, tickCount - 1 do
                 local line = GetTickLine(i)
-                line:SetPoint("LEFT", Castbar.Bar, "LEFT", (i / tickCount) * (WIDTH - 2), 0)
+                -- FIXED: Using dynamicWidth instead of the missing WIDTH variable
+                line:SetPoint("LEFT", Castbar.Bar, "LEFT", (i / tickCount) * (dynamicWidth - 2), 0)
                 line:Show()
             end
         end
@@ -104,13 +106,12 @@ Castbar:SetScript("OnUpdate", function(self, elapsed)
     local progress = self.isChannel and (self.endTime - now) or (now - self.startTime)
     self.Bar:SetValue(progress)
     
-    -- Using the corrected C_UnitAuras namespace
+    -- Corrected C_UnitAuras plural namespace
     local auraData = C_UnitAuras.GetPlayerAuraBySpellID(36032) 
     local stackCount = auraData and auraData.applications or 0
 
     if stackCount > 0 then
         self.Text:SetText(string.format("%s (%d)", self.spellName, stackCount))
-        -- Minimalist color transition: slightly darker blue to deep purple
         self.Bar:SetStatusBarColor(0.2 + (stackCount * 0.1), 0.3, 0.8 - (stackCount * 0.1))
     else
         self.Text:SetText(self.spellName)

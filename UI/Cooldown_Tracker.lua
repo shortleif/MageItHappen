@@ -6,7 +6,7 @@ local CDTracker = CreateFrame("Frame", "MIH_CooldownTracker", UIParent, "Backdro
 local ICON_SIZE_SHORT = 40
 local ICON_SIZE_LONG = 40
 local SPACING = 4
-local PADDING = 6 -- Space between icons and the edge of the background
+local PADDING = 6 
 
 -- Spell IDs (TBC Anniversary)
 local SHORT_CDS = {
@@ -16,7 +16,7 @@ local SHORT_CDS = {
     120,   -- Cone of Cold
     27079, -- Fire Blast
     11426, -- Ice Barrier
-    543, -- Fire Ward
+    543,   -- Fire Ward
 }
 
 local LONG_CDS = {
@@ -28,17 +28,21 @@ local LONG_CDS = {
     31687, -- Summon Water Elemental
 }
 
+-- Calculate widths dynamically
+local shortRowWidth = ((ICON_SIZE_SHORT + SPACING) * #SHORT_CDS) - SPACING
+local longRowWidth = ((ICON_SIZE_LONG + SPACING) * #LONG_CDS) - SPACING
+local maxWidth = math.max(shortRowWidth, longRowWidth)
+
 -- 2. Setup the Background Visuals
-CDTracker:SetSize(((ICON_SIZE_LONG + SPACING) * #LONG_CDS) + (PADDING * 2), 120) -- Dynamic width based on icons
+CDTracker:SetSize(maxWidth + (PADDING * 2), 110) 
 CDTracker:SetPoint("CENTER", 0, -210)
---[[CDTracker:SetBackdrop({
+CDTracker:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
     edgeFile = "Interface\\ChatFrame\\ChatFrameBackground",
     tile = true, tileSize = 5, edgeSize = 1,
 })
-CDTracker:SetBackdropColor(0, 0, 0, 0.5) -- Semi-transparent black
+CDTracker:SetBackdropColor(0, 0, 0, 0.5) 
 CDTracker:SetBackdropBorderColor(0, 0, 0, 0.8)
-]]--
 
 -- Helper to create an icon button
 local function CreateCDIcon(parent, spellID, size)
@@ -64,14 +68,15 @@ local function CreateCDIcon(parent, spellID, size)
     return btn
 end
 
--- 3. Create Row Containers (Anchored inside the background)
+-- 3. Create Row Containers
 local shortRow = CreateFrame("Frame", "MIH_ShortCDRow", CDTracker)
 shortRow:SetPoint("TOP", 0, -PADDING)
-shortRow:SetSize((ICON_SIZE_SHORT + SPACING) * #SHORT_CDS, ICON_SIZE_SHORT)
+shortRow:SetSize(shortRowWidth, ICON_SIZE_SHORT * 0.66)
+addonTable.shortRowWidth = shortRowWidth -- Export for Castbar
 
 local longRow = CreateFrame("Frame", "MIH_LongCDRow", CDTracker)
 longRow:SetPoint("BOTTOM", 0, PADDING)
-longRow:SetSize((ICON_SIZE_LONG + SPACING) * #LONG_CDS, ICON_SIZE_LONG)
+longRow:SetSize(longRowWidth, ICON_SIZE_LONG * 0.66)
 
 -- Populate Rows
 local allIcons = {}
@@ -87,7 +92,7 @@ for i, id in ipairs(LONG_CDS) do
     table.insert(allIcons, icon)
 end
 
--- Update Logicqqqqqqqqqqqqqq
+-- Update Logic
 CDTracker:SetScript("OnUpdate", function(self, elapsed)
     for _, icon in ipairs(allIcons) do
         local start, duration = GetSpellCooldown(icon.spellID)
