@@ -4,8 +4,10 @@
 
 Core/TTD_Core.lua
 Core/Logic_CDSync.lua
-UI/Mage_Castbar.lua
 UI/Cooldown_Tracker.lua
+UI/Mage_Castbar.lua
+UI/Status_Bars.lua
+UI/Missing_Buffs.lua
 Modules/Damage_Summary.lua
 Config.lua
 Main.lua

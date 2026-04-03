@@ -1,5 +1,6 @@
 local addonName, addonTable = ...
--- 1. Create the Main Container with Backdrop
+
+-- 1. Main Container
 local CDTracker = CreateFrame("Frame", "MIH_CooldownTracker", UIParent, "BackdropTemplate")
 
 -- Configuration
@@ -28,24 +29,11 @@ local LONG_CDS = {
     31687, -- Summon Water Elemental
 }
 
--- Calculate widths dynamically
-local shortRowWidth = ((ICON_SIZE_SHORT + SPACING) * #SHORT_CDS) - SPACING
-local longRowWidth = ((ICON_SIZE_LONG + SPACING) * #LONG_CDS) - SPACING
-local maxWidth = math.max(shortRowWidth, longRowWidth)
-
--- 2. Setup the Background Visuals
-CDTracker:SetSize(maxWidth + (PADDING * 2), 110) 
-CDTracker:SetPoint("CENTER", 0, -210)
-CDTracker:SetBackdrop({
-    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-    edgeFile = "Interface\\ChatFrame\\ChatFrameBackground",
-    tile = true, tileSize = 5, edgeSize = 1,
-})
-CDTracker:SetBackdropColor(0, 0, 0, 0.5) 
-CDTracker:SetBackdropBorderColor(0, 0, 0, 0.8)
-
 -- Helper to create an icon button
 local function CreateCDIcon(parent, spellID, size)
+    -- Only create the icon if the player knows the spell
+    if not IsPlayerSpell(spellID) then return nil end
+
     local btn = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     btn:SetSize(size, size * 0.66) 
     
@@ -68,43 +56,121 @@ local function CreateCDIcon(parent, spellID, size)
     return btn
 end
 
--- 3. Create Row Containers
-local shortRow = CreateFrame("Frame", "MIH_ShortCDRow", CDTracker)
-shortRow:SetPoint("TOP", 0, -PADDING)
-shortRow:SetSize(shortRowWidth, ICON_SIZE_SHORT * 0.66)
-addonTable.shortRowWidth = shortRowWidth -- Export for Castbar
+-- 2. Populate Rows and Calculate Widths
+local allIcons = {}
+local shortIcons = {}
+local longIcons = {}
 
+-- Create Row Containers
+local shortRow = CreateFrame("Frame", "MIH_ShortCDRow", CDTracker)
 local longRow = CreateFrame("Frame", "MIH_LongCDRow", CDTracker)
-longRow:SetPoint("BOTTOM", 0, PADDING)
+
+-- Populate Short CDs
+for _, id in ipairs(SHORT_CDS) do
+    local icon = CreateCDIcon(shortRow, id, ICON_SIZE_SHORT)
+    if icon then table.insert(shortIcons, icon) end
+end
+
+-- Populate Long CDs
+for _, id in ipairs(LONG_CDS) do
+    local icon = CreateCDIcon(longRow, id, ICON_SIZE_LONG)
+    if icon then table.insert(longIcons, icon) end
+end
+
+-- Dynamic Width Calculation based on KNOWN spells
+local shortRowWidth = (#shortIcons > 0) and (((ICON_SIZE_SHORT + SPACING) * #shortIcons) - SPACING) or 100
+local longRowWidth = (#longIcons > 0) and (((ICON_SIZE_LONG + SPACING) * #longIcons) - SPACING) or 100
+local maxWidth = math.max(shortRowWidth, longRowWidth)
+
+-- Export width for Castbar/Status Bars
+addonTable.shortRowWidth = shortRowWidth
+
+-- 3. Container & Row Positioning
+CDTracker:SetSize(maxWidth + (PADDING * 2), 160) 
+CDTracker:SetPoint("CENTER", 0, -210)
+--[[CDTracker:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    tile = true, tileSize = 5, edgeSize = 1,
+})
+CDTracker:SetBackdropColor(0, 0, 0, 0.5) 
+CDTracker:SetBackdropBorderColor(0, 0, 0, 0.8)
+]]--
+shortRow:SetSize(shortRowWidth, ICON_SIZE_SHORT * 0.66)
+shortRow:SetPoint("TOP", CDTracker, "TOP", 0, -30)
+
 longRow:SetSize(longRowWidth, ICON_SIZE_LONG * 0.66)
 
--- Populate Rows
-local allIcons = {}
-for i, id in ipairs(SHORT_CDS) do
-    local icon = CreateCDIcon(shortRow, id, ICON_SIZE_SHORT)
+-- Anchor individual icons within rows
+for i, icon in ipairs(shortIcons) do
     icon:SetPoint("LEFT", (i - 1) * (ICON_SIZE_SHORT + SPACING), 0)
     table.insert(allIcons, icon)
 end
 
-for i, id in ipairs(LONG_CDS) do
-    local icon = CreateCDIcon(longRow, id, ICON_SIZE_LONG)
+for i, icon in ipairs(longIcons) do
     icon:SetPoint("LEFT", (i - 1) * (ICON_SIZE_LONG + SPACING), 0)
     table.insert(allIcons, icon)
 end
 
--- Update Logic
+-- 4. Update Logic
 CDTracker:SetScript("OnUpdate", function(self, elapsed)
     for _, icon in ipairs(allIcons) do
         local start, duration = GetSpellCooldown(icon.spellID)
         
         if start and start > 0 and duration > 1.5 then
             icon.cd:SetCooldown(start, duration)
-            icon.icon:SetDesaturated(true)
+            icon.icon:SetDesaturated(true) 
             icon:SetAlpha(0.6)
         else
             icon.cd:SetCooldown(0, 0)
             icon.icon:SetDesaturated(false) 
             icon:SetAlpha(1.0)
         end
+    end
+    
+    if not longRow.anchored and _G["MIH_StatusGroup"] then
+        longRow:SetPoint("TOP", _G["MIH_StatusGroup"], "BOTTOM", 0, -4)
+        longRow.anchored = true
+    end
+end)
+
+-- Modern, reliable event registration
+CDTracker:RegisterEvent("SPELLS_CHANGED")     
+CDTracker:RegisterEvent("PLAYER_LEVEL_UP")    
+
+CDTracker:SetScript("OnEvent", function(self, event, ...)
+    local newlyLearned = {}
+    
+    -- Check Short CDs
+    for _, id in ipairs(SHORT_CDS) do
+        -- If it's in the list but NOT currently in allIcons, it's new
+        local isTracked = false
+        for _, icon in ipairs(allIcons) do
+            if icon.spellID == id then isTracked = true break end
+        end
+        
+        if not isTracked and IsPlayerSpell(id) then
+            local info = C_Spell.GetSpellInfo(id)
+            if info then table.insert(newlyLearned, info.name) end
+        end
+    end
+
+    -- Check Long CDs
+    for _, id in ipairs(LONG_CDS) do
+        local isTracked = false
+        for _, icon in ipairs(allIcons) do
+            if icon.spellID == id then isTracked = true break end
+        end
+        
+        if not isTracked and IsPlayerSpell(id) then
+            local info = C_Spell.GetSpellInfo(id)
+            if info then table.insert(newlyLearned, info.name) end
+        end
+    end
+
+    -- If we found new spells, print them specifically
+    if #newlyLearned > 0 then
+        local spellList = table.concat(newlyLearned, ", ")
+        print("|cff00ff00MageItHappen:|r New spells learned: |cff00ccff" .. spellList .. "|r. Please type |cffffff00/reload|r to update trackers.")
     end
 end)
