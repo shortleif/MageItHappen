@@ -3,42 +3,48 @@ local DamageSum = CreateFrame("Frame")
 
 local totalDamage = 0
 local lastCastTime = 0
-local summaryActive = false
 
--- Create the Display Frame
+-- Track all Mage AoE Spells
+local AOE_SPELLS = {
+    ["Arcane Explosion"] = true,
+    ["Blizzard"] = true,
+    ["Flamestrike"] = true,
+}
+
 local display = CreateFrame("Frame", "MIH_DamageSummaryFrame", UIParent)
 display:SetSize(200, 50)
-display:SetPoint("CENTER", 0, 50) -- Above the character
+display:SetPoint("CENTER", 0, 50) 
 display:Hide()
 
 display.text = display:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 display.text:SetPoint("CENTER")
-display.text:SetTextColor(1, 1, 1) -- Pure White
+display.text:SetTextColor(1, 1, 1)
 
 DamageSum:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 DamageSum:SetScript("OnEvent", function()
-    local _, subEvent, _, _, _, _, _, _, _, _, _, spellId, _, _, amount = CombatLogGetCurrentEventInfo()
+    -- Respect Config Toggle
+    if MageItHappenDB and not MageItHappenDB.showDamageSummary then return end
+
+    local _, subEvent, _, _, _, _, _, _, _, _, _, _, spellName, _, amount = CombatLogGetCurrentEventInfo()
     
-    -- Filter for Arcane Explosion (SpellID 1449)
-    if spellId == 1449 and subEvent == "SPELL_DAMAGE" then
+    if subEvent == "SPELL_DAMAGE" and AOE_SPELLS[spellName] then
         local now = GetTime()
         
-        -- If this is a new cast (more than 0.1s since last hit), reset total
+        -- Reset if more than 0.1s since last hit
         if now - lastCastTime > 0.1 then
             totalDamage = amount
-            summaryActive = true
         else
             totalDamage = totalDamage + amount
         end
         
         lastCastTime = now
         
-        -- Update UI
-        display.text:SetText(totalDamage)
+        -- FIX: Explicitly cast the integer to a string
+        display.text:SetText(tostring(totalDamage))
+        
         display:Show()
         display:SetAlpha(1)
         
-        -- Simple Fade-out logic
         C_Timer.After(1.5, function()
             if GetTime() - lastCastTime >= 1.5 then
                 display:Hide()
