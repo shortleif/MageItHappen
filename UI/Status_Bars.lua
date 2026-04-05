@@ -1,24 +1,24 @@
 local addonName, addonTable = ...
 local StatusGroup = CreateFrame("Frame", "MIH_StatusGroup", UIParent, "BackdropTemplate")
 
+-- Configuration
 local HP_HEIGHT = 6
 local MANA_HEIGHT = 16 
 local SPACING = 2
 local dynamicWidth = addonTable.shortRowWidth or 250
 
+-- Position the group
 StatusGroup:SetSize(dynamicWidth, HP_HEIGHT + MANA_HEIGHT + SPACING)
 StatusGroup:SetPoint("TOP", _G["MIH_ShortCDRow"], "BOTTOM", 0, -4)
 
 -- CRITICAL FIX: Ensure the group and its children NEVER catch the mouse
+-- This ensures buttons behind/under the bars remain clickable.
 StatusGroup:EnableMouse(false)
-
--- DEBUG: Mouse-over log for the background area
-StatusGroup:SetScript("OnEnter", function() print("|cffff0000[MIH Debug]|r Mouse entered StatusGroup! (This might be blocking clicks)") end)
 
 local function CreateBar(name, r, g, b, height)
     local barContainer = CreateFrame("Frame", name .. "Container", StatusGroup, "BackdropTemplate")
     barContainer:SetSize(dynamicWidth, height)
-    barContainer:EnableMouse(false) -- Disable mouse!
+    barContainer:EnableMouse(false) -- Disable mouse interaction
 
     barContainer:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8", 
@@ -33,7 +33,7 @@ local function CreateBar(name, r, g, b, height)
     bar:SetPoint("BOTTOMRIGHT", -1, 1)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     bar:SetStatusBarColor(r, g, b)
-    bar:EnableMouse(false) -- Disable mouse!
+    bar:EnableMouse(false) -- Disable mouse interaction
     
     return barContainer, bar
 end

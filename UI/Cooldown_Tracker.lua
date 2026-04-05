@@ -12,18 +12,17 @@ local SHORT_CDS = { 2139, 122, 1953, 120, 27079, 11426, 543 }
 local LONG_CDS = { 12042, 12472, 11958, 45438, 12051, 31687 }
 
 local function CreateCDIcon(parent, spellID, size)
-    -- Use SecureActionButtonTemplate
+    -- Modeled exactly after your working "Mage Armor" button logic
     local btn = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate, BackdropTemplate")
     btn:SetSize(size, size * 0.66) 
     btn:SetFrameLevel(parent:GetFrameLevel() + 20)
     
-    btn:RegisterForClicks("LeftButtonUp")
+    btn:RegisterForClicks("AnyDown", "AnyUp")
     
     local spellInfo = C_Spell.GetSpellInfo(spellID)
     if spellInfo then
-        -- FIX: Switch to 'macro' to bypass rank-specific ID issues
-        btn:SetAttribute("type1", "macro")
-        btn:SetAttribute("macrotext1", "/cast " .. spellInfo.name)
+        btn:SetAttribute("*type1", "macro")
+        btn:SetAttribute("*macrotext1", "/cast " .. spellInfo.name)
         
         btn.icon = btn:CreateTexture(nil, "ARTWORK")
         btn.icon:SetAllPoints()
@@ -33,27 +32,21 @@ local function CreateCDIcon(parent, spellID, size)
 
     btn.cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
     btn.cd:SetAllPoints()
-    btn.cd:EnableMouse(false)
+    btn.cd:SetDrawEdge(true)
     btn.cd:SetMouseClickEnabled(false) 
-
-    -- DEBUG CLUES
-    btn:SetScript("OnEnter", function(self) 
-        print("|cff00ff00[MIH Debug]|r Mouse over: " .. (spellInfo and spellInfo.name or spellID))
-    end)
-    btn:SetScript("PostClick", function(self, button)
-        print("|cffffff00[MIH Debug]|r Firing Macro: /cast " .. (spellInfo and spellInfo.name or "Unknown"))
-    end)
 
     btn.spellID = spellID
     return btn
 end
 
--- Persistence and Building Logic
 local allIcons = {}
 local shortRow = CreateFrame("Frame", "MIH_ShortCDRow", CDTracker)
 local longRow = CreateFrame("Frame", "MIH_LongCDRow", CDTracker)
 
 local function BuildTracker()
+    -- Attributes cannot be changed in combat
+    if InCombatLockdown() then return end
+
     for _, icon in ipairs(allIcons) do icon:Hide() end
     wipe(allIcons)
 
@@ -99,12 +92,14 @@ end
 
 CDTracker:RegisterEvent("ADDON_LOADED")
 CDTracker:RegisterEvent("SPELLS_CHANGED")
+CDTracker:RegisterEvent("PLAYER_REGEN_ENABLED")
 CDTracker:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         ScanForNewSpells()
         BuildTracker()
-    elseif event == "SPELLS_CHANGED" then
+    elseif event == "SPELLS_CHANGED" or event == "PLAYER_REGEN_ENABLED" then
         ScanForNewSpells()
+        BuildTracker()
     end
 end)
 

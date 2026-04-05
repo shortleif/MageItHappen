@@ -3,16 +3,19 @@ local BuffReminders = CreateFrame("Frame", "MIH_BuffReminders", UIParent, "Backd
 
 local BTN_SIZE = 30
 local SPACING = 4
-local UPDATE_INTERVAL = 2.0 
+local UPDATE_INTERVAL = 1.0 
 
 BuffReminders:SetSize((BTN_SIZE * 3) + (SPACING * 2), BTN_SIZE)
-BuffReminders:SetFrameLevel(20)
+BuffReminders:SetFrameLevel(30)
 
 if _G["MIH_LongCDRow"] then
     BuffReminders:SetPoint("TOP", _G["MIH_LongCDRow"], "BOTTOM", 0, -10)
 else
     BuffReminders:SetPoint("CENTER", 0, -300) 
 end
+
+-- FIX: The official way to hide secure buttons in combat without errors
+RegisterStateDriver(BuffReminders, "visibility", "[combat] hide; show")
 
 local function GetPreferredArmorID()
     return (MageItHappenDB and MageItHappenDB.preferredArmor) or 27125
@@ -23,13 +26,12 @@ local function CreateClickableReminder(name, spellID)
     btn:SetSize(BTN_SIZE, BTN_SIZE)
     btn:SetFrameLevel(BuffReminders:GetFrameLevel() + 5)
     
-    btn:RegisterForClicks("LeftButtonUp")
+    btn:RegisterForClicks("AnyDown", "AnyUp")
     
     local info = C_Spell.GetSpellInfo(spellID)
     if info then 
-        -- FIX: Using macro approach for buff reminders
-        btn:SetAttribute("type1", "macro")
-        btn:SetAttribute("macrotext1", "/cast " .. info.name)
+        btn:SetAttribute("*type1", "macro")
+        btn:SetAttribute("*macrotext1", "/cast " .. info.name)
         
         btn.icon = btn:CreateTexture(nil, "ARTWORK")
         btn.icon:SetPoint("TOPLEFT", 1, -1)
@@ -44,7 +46,10 @@ local function CreateClickableReminder(name, spellID)
     return btn
 end
 
-local rubyBtn = CreateClickableReminder("MIH_RemindRuby", 27101) 
+-- IMPLEMENTED: Level-based Ruby check
+local rubyID = (UnitLevel("player") >= 68) and 27101 or 22044
+local rubyBtn = CreateClickableReminder("MIH_RemindRuby", rubyID) 
+
 local intBtn = CreateClickableReminder("MIH_RemindInt", 27126)
 local armorBtn = CreateClickableReminder("MIH_RemindArmor", GetPreferredArmorID())
 
@@ -53,16 +58,13 @@ intBtn:SetPoint("LEFT", rubyBtn, "RIGHT", SPACING, 0)
 armorBtn:SetPoint("LEFT", intBtn, "RIGHT", SPACING, 0)
 
 local function UpdateBuffStatus()
-    if UnitAffectingCombat("player") then
-        BuffReminders:Hide()
-        return
-    end
-    BuffReminders:Show()
+    -- FIX: We removed Hide/Show here to stop the ADDON_ACTION_BLOCKED errors
+    if InCombatLockdown() then return end
 
     local currentArmorID = GetPreferredArmorID()
     local armorInfo = C_Spell.GetSpellInfo(currentArmorID)
     if armorInfo then 
-        armorBtn:SetAttribute("macrotext1", "/cast " .. armorInfo.name)
+        armorBtn:SetAttribute("*macrotext1", "/cast " .. armorInfo.name)
         armorBtn.icon:SetTexture(armorInfo.iconID) 
     end
 
@@ -92,5 +94,4 @@ BuffReminders:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 BuffReminders:RegisterEvent("PLAYER_REGEN_ENABLED")
-BuffReminders:RegisterEvent("PLAYER_REGEN_DISABLED")
 BuffReminders:SetScript("OnEvent", UpdateBuffStatus)
