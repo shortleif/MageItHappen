@@ -15,7 +15,5 @@
     "~\\.vscode\\extensions\\ketho.wow-api-0.22.3\\Annotations\\Core",
     "~\\.vscode\\extensions\\ketho.wow-api-0.22.3\\Annotations\\FrameXML"
   ],
-  "Lua.diagnostics.globals": [
-    "HUD_EDIT_MODE_CAST_BAR_LABEL"
-  ]
+  "Lua.diagnostics.globals": ["HUD_EDIT_MODE_CAST_BAR_LABEL", "TargetFrameToT"]
 }

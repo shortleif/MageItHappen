@@ -1,0 +1,3 @@
+local addonName, addonTable = ...
+
+addonTable.MainFont = "Interface\\AddOns\\MageItHappen\\Fonts\\Roboto_Condensed-Bold.ttf"

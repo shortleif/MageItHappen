@@ -1,6 +1,9 @@
 local addonName, addonTable = ...
 
--- 1. Create/Reference the UI Window
+-- NEW: Centralized legibility font and path
+addonTable.MainFont = "Fonts\\FRIZQT__.TTF" -- Standard WoW font, very legible with outline
+local FONT_SIZE_LARGE = 16
+
 local ttdFrame = CreateFrame("Frame", "MyTTDVisualFrame", UIParent, "BackdropTemplate")
 ttdFrame:SetSize(150, 40)
 ttdFrame:SetPoint("CENTER", 0, -100) 
@@ -13,10 +16,11 @@ ttdFrame:SetBackdropColor(0, 0, 0, 0.5)
 ttdFrame:SetScript("OnDragStart", ttdFrame.StartMoving)
 ttdFrame:SetScript("OnDragStop", ttdFrame.StopMovingOrSizing)
 
--- 2. Create the Text string
-local ttdText = ttdFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+-- FIX: Applied custom font and outline
+local ttdText = ttdFrame:CreateFontString(nil, "OVERLAY")
+ttdText:SetFont(addonTable.MainFont, FONT_SIZE_LARGE, "OUTLINE")
 ttdText:SetPoint("CENTER")
-ttdText:SetTextColor(1, 1, 1, 1) 
+ttdText:SetTextColor(1, 1, 1, 1)
 
 -- 3. State Tracking
 local isInBossEncounter = false

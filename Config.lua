@@ -1,4 +1,6 @@
 local addonName, addonTable = ...
+
+-- 1. Create the Frame immediately so 'Config' is never nil
 local Config = CreateFrame("Frame", "MageItHappenConfigPanel", UIParent)
 Config.name = "MageItHappen"
 
@@ -8,6 +10,7 @@ Config:RegisterEvent("ADDON_LOADED")
 Config:SetScript("OnEvent", function(self, event, name)
     if name ~= addonName then return end
     
+    -- Default Settings
     local defaults = {
         apWaitWindow = 20,
         ivWaitWindow = 10,
@@ -15,6 +18,9 @@ Config:SetScript("OnEvent", function(self, event, name)
         showOnlyInEncounter = false,
         preferredArmor = 27128,
         showDamageSummary = true,
+        trackedBuffs = "Arcane Power, Icy Veins",
+        trackedDebuffs = "Frost Nova, Frostbolt",
+        includeTrinkets = true,
     }
 
     for k, v in pairs(defaults) do
@@ -29,40 +35,46 @@ Config:SetScript("OnEvent", function(self, event, name)
     end
 end)
 
--- Improved Header: Uses Gold color for clear distinction
-local function CreateHeader(text, yOffset)
+-- Helper: Header (Gold Color)
+local function CreateHeader(text, x, y)
     local header = Config:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    header:SetPoint("TOPLEFT", 16, yOffset)
+    header:SetPoint("TOPLEFT", x, y)
     header:SetText(text)
     header:SetJustifyH("LEFT")
     return header
 end
 
--- Improved Checkbox: Indented to 40px
+-- Helper: Checkbox (Indented)
 local checkboxCount = 0
-local function CreateCheckbox(label, dbKey, yOffset)
+local function CreateCheckbox(label, dbKey, x, y)
     checkboxCount = checkboxCount + 1
     local globalName = "MIH_Checkbox_" .. checkboxCount
     local check = CreateFrame("CheckButton", globalName, Config, "InterfaceOptionsCheckButtonTemplate")
-    check:SetPoint("TOPLEFT", 40, yOffset) -- Indented
+    check:SetPoint("TOPLEFT", x + 24, y)
     _G[globalName .. "Text"]:SetText(label)
     
     check:SetScript("OnShow", function(self) self:SetChecked(MageItHappenDB[dbKey]) end)
-    check:SetScript("OnClick", function(self) MageItHappenDB[dbKey] = self:GetChecked() end)
+    check:SetScript("OnClick", function(self)
+        MageItHappenDB[dbKey] = self:GetChecked()
+        local ttdFrame = _G["MyTTDVisualFrame"]
+        if dbKey == "showTTD" and ttdFrame then
+            if self:GetChecked() then ttdFrame:Show() else ttdFrame:Hide() end
+        end
+    end)
     return check
 end
 
--- Improved Slider: Indented and text color changed to white
-local function CreateSlider(name, label, minVal, maxVal, dbKey, yOffset)
+-- Helper: Slider
+local function CreateSlider(name, label, minVal, maxVal, dbKey, x, y)
     local slider = CreateFrame("Slider", name, Config, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 44, yOffset) -- Indented
+    slider:SetPoint("TOPLEFT", x + 28, y)
     slider:SetMinMaxValues(minVal, maxVal)
     slider:SetValueStep(1)
     slider:SetObeyStepOnDrag(true)
-    slider:SetSize(200, 20)
+    slider:SetSize(180, 20)
     
     local text = _G[name .. "Text"]
-    text:SetTextColor(1, 1, 1) -- White text for settings
+    text:SetTextColor(1, 1, 1)
     
     slider:SetScript("OnShow", function(self)
         local val = MageItHappenDB[dbKey] or 0
@@ -78,10 +90,10 @@ local function CreateSlider(name, label, minVal, maxVal, dbKey, yOffset)
     return slider
 end
 
--- Improved Dropdown: Indented
-local function CreateDropdown(label, dbKey, yOffset, options)
+-- Helper: Dropdown
+local function CreateDropdown(label, dbKey, x, y, options)
     local dropdown = CreateFrame("Frame", "MIH_Dropdown_" .. dbKey, Config, "UIDropDownMenuTemplate")
-    dropdown:SetPoint("TOPLEFT", 24, yOffset) -- Indented alignment
+    dropdown:SetPoint("TOPLEFT", x + 8, y)
     
     local text = dropdown:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     text:SetPoint("BOTTOMLEFT", dropdown, "TOPLEFT", 20, 5)
@@ -97,7 +109,7 @@ local function CreateDropdown(label, dbKey, yOffset, options)
                 UIDropDownMenu_SetText(dropdown, opt.name)
                 CloseDropDownMenus()
             end
-            info.checked = (MageItHappenDB and MageItHappenDB[dbKey] == opt.id)
+            info.checked = (MageItHappenDB[dbKey] == opt.id)
             UIDropDownMenu_AddButton(info)
         end
     end)
@@ -113,31 +125,62 @@ local function CreateDropdown(label, dbKey, yOffset, options)
     end)
 end
 
+-- Helper: EditBox
+local function CreateEditBox(label, dbKey, y)
+    local editbox = CreateFrame("EditBox", "MIH_Edit_" .. dbKey, Config, "InputBoxTemplate")
+    editbox:SetSize(500, 20)
+    editbox:SetPoint("TOPLEFT", 40, y)
+    editbox:SetAutoFocus(false)
+    
+    local text = editbox:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    text:SetPoint("BOTTOMLEFT", editbox, "TOPLEFT", 0, 5)
+    text:SetText(label)
+
+    editbox:SetScript("OnShow", function(self)
+        self:SetText(MageItHappenDB[dbKey] or "")
+    end)
+    
+    editbox:SetScript("OnEnterPressed", function(self)
+        MageItHappenDB[dbKey] = self:GetText()
+        self:ClearFocus()
+    end)
+end
+
+-- 3. Build UI Layout
 function Config:InitializeUI()
     local title = self:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
     title:SetText("MageItHappen Settings")
 
-    -- Targeting Section
-    CreateHeader("Targeting & Time-To-Die", -60)
-    CreateCheckbox("Display Time-To-Die (TTD) Text", "showTTD", -85)
-    CreateCheckbox("Show TTD in Boss Encounters Only", "showOnlyInEncounter", -120)
+    -- COLUMN 1
+    CreateHeader("Targeting & TTD", 16, -60)
+    CreateCheckbox("Display TTD Text", "showTTD", 16, -85)
+    CreateCheckbox("TTD: Boss Only", "showOnlyInEncounter", 16, -120)
 
-    -- Cooldown Sync Section (Larger gap after previous group)
-    CreateHeader("Cooldown Sync Windows", -180)
-    CreateSlider("MIH_AP_Slider", "Arcane Power Window", 0, 60, "apWaitWindow", -215)
-    CreateSlider("MIH_IV_Slider", "Icy Veins Window", 0, 60, "ivWaitWindow", -275)
-
-    -- Buffs & AoE Section
-    CreateHeader("Buffs & AoE Tracking", -340)
-    CreateCheckbox("Show AoE Damage Summary", "showDamageSummary", -365)
-
+    CreateHeader("Buffs & AoE Tracking", 16, -180)
+    CreateCheckbox("Show AoE Damage Summary", "showDamageSummary", 16, -205)
     local armorOptions = {
         { name = "Ice Armor", id = 27128 },
         { name = "Mage Armor", id = 27125 },
         { name = "Molten Armor", id = 27124 },
     }
-    CreateDropdown("Preferred Armor Buff", "preferredArmor", -425, armorOptions)
+    CreateDropdown("Preferred Armor Buff", "preferredArmor", 16, -265, armorOptions)
+
+    -- COLUMN 2
+    CreateHeader("Cooldown Sync Windows", 300, -60)
+    CreateSlider("MIH_AP_Slider", "Arcane Power Window", 0, 60, "apWaitWindow", 300, -95)
+    CreateSlider("MIH_IV_Slider", "Icy Veins Window", 0, 60, "ivWaitWindow", 300, -155)
+    
+    -- BOTTOM SECTION
+    local separator = Config:CreateTexture(nil, "ARTWORK")
+    separator:SetSize(580, 1)
+    separator:SetPoint("TOPLEFT", 16, -330)
+    separator:SetColorTexture(1, 1, 1, 0.2)
+
+    CreateHeader("Aura Tracking", 16, -350)
+    CreateEditBox("My Buffs (Comma separated)", "trackedBuffs", -385)
+    CreateEditBox("Target Debuffs (Comma separated)", "trackedDebuffs", -435)
+    CreateCheckbox("Include Activated Trinkets", "includeTrinkets", 16, -465)
 end
 
 addonTable.Config = Config

@@ -8,22 +8,19 @@ local ICON_SIZE_LONG = 40
 local SPACING = 4
 local PADDING = 6 
 
-local SHORT_CDS = { 2139, 122, 1953, 120, 27079, 11426, 543 }
+local SHORT_CDS = { 2139, 122, 1953, 120, 2136, 11426, 543 }
 local LONG_CDS = { 12042, 12472, 11958, 45438, 12051, 31687 }
 
 local function CreateCDIcon(parent, spellID, size)
-    -- Modeled exactly after your working "Mage Armor" button logic
     local btn = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate, BackdropTemplate")
     btn:SetSize(size, size * 0.66) 
     btn:SetFrameLevel(parent:GetFrameLevel() + 20)
-    
     btn:RegisterForClicks("AnyDown", "AnyUp")
     
     local spellInfo = C_Spell.GetSpellInfo(spellID)
     if spellInfo then
         btn:SetAttribute("*type1", "macro")
         btn:SetAttribute("*macrotext1", "/cast " .. spellInfo.name)
-        
         btn.icon = btn:CreateTexture(nil, "ARTWORK")
         btn.icon:SetAllPoints()
         btn.icon:SetTexture(spellInfo.iconID)
@@ -32,9 +29,7 @@ local function CreateCDIcon(parent, spellID, size)
 
     btn.cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
     btn.cd:SetAllPoints()
-    btn.cd:SetDrawEdge(true)
     btn.cd:SetMouseClickEnabled(false) 
-
     btn.spellID = spellID
     return btn
 end
@@ -44,9 +39,7 @@ local shortRow = CreateFrame("Frame", "MIH_ShortCDRow", CDTracker)
 local longRow = CreateFrame("Frame", "MIH_LongCDRow", CDTracker)
 
 local function BuildTracker()
-    -- Attributes cannot be changed in combat
     if InCombatLockdown() then return end
-
     for _, icon in ipairs(allIcons) do icon:Hide() end
     wipe(allIcons)
 
@@ -65,16 +58,26 @@ local function BuildTracker()
     for _, icon in ipairs(shortIcons) do table.insert(allIcons, icon) end
     for _, icon in ipairs(longIcons) do table.insert(allIcons, icon) end
 
-    local sWidth = (#shortIcons > 0) and (((ICON_SIZE_SHORT + SPACING) * #shortIcons) - SPACING) or 100
-    local lWidth = (#longIcons > 0) and (((ICON_SIZE_LONG + SPACING) * #longIcons) - SPACING) or 100
-    addonTable.shortRowWidth = sWidth
+    -- ALIGNMENT CALCULATION
+    local sWidth = (#shortIcons > 0) and (((ICON_SIZE_SHORT + SPACING) * #shortIcons) - SPACING) or 250
+    local lWidth = (#longIcons > 0) and (((ICON_SIZE_LONG + SPACING) * #longIcons) - SPACING) or 250
+    
+    -- Sync widths to other modules
+    if addonTable.UpdateCastbarWidth then addonTable.UpdateCastbarWidth(sWidth) end
+    if addonTable.UpdateStatusBarsWidth then addonTable.UpdateStatusBarsWidth(sWidth) end
 
     CDTracker:SetSize(math.max(sWidth, lWidth) + (PADDING * 2), 160)
     CDTracker:SetPoint("CENTER", 0, -210)
     
     shortRow:SetSize(sWidth, ICON_SIZE_SHORT * 0.66)
-    shortRow:SetPoint("TOP", CDTracker, "TOP", 0, -30)
     longRow:SetSize(lWidth, ICON_SIZE_LONG * 0.66)
+
+    -- Anchor Short CDs to Castbar bottom
+    if _G["MageCustomCastbar"] then
+        shortRow:SetPoint("TOP", _G["MageCustomCastbar"], "BOTTOM", 0, -4)
+    else
+        shortRow:SetPoint("TOP", CDTracker, "TOP", 0, -30)
+    end
 
     for i, icon in ipairs(shortIcons) do icon:SetPoint("LEFT", (i - 1) * (ICON_SIZE_SHORT + SPACING), 0) end
     for i, icon in ipairs(longIcons) do icon:SetPoint("LEFT", (i - 1) * (ICON_SIZE_LONG + SPACING), 0) end
@@ -116,7 +119,6 @@ CDTracker:SetScript("OnUpdate", function(self)
             icon:SetAlpha(1.0)
         end
     end
-    
     if not longRow.anchored and _G["MIH_StatusGroup"] then
         longRow:SetPoint("TOP", _G["MIH_StatusGroup"], "BOTTOM", 0, -4)
         longRow.anchored = true
