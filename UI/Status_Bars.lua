@@ -25,9 +25,9 @@ local function CreateBar(name, r, g, b, height)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     bar:SetStatusBarColor(r, g, b)
 
-    -- LEGIBLE FONT FIX
     bar.text = bar:CreateFontString(nil, "OVERLAY")
-    bar.text:SetFont(addonTable.MainFont, 11, "OUTLINE")
+    bar.text:SetFont(addonTable.MainFont, 12, "OUTLINE")
+    bar.text:SetTextColor(1, 1, 1, 1)
     bar.text:SetPoint("CENTER", 0, 0)
     
     return barContainer, bar

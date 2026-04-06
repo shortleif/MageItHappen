@@ -27,13 +27,17 @@ local function CreateAuraBar(parent)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     bar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     bar:SetBackdropColor(0, 0, 0, 0.7); bar:SetBackdropBorderColor(0, 0, 0, 1)
+    
+    -- Updated to 13pt for better legibility on 270px bars
     bar.text = bar:CreateFontString(nil, "OVERLAY")
-    bar.text:SetFont(addonTable.MainFont, 11, "OUTLINE")
-    bar.text:SetPoint("LEFT", 2, 0)
+    bar.text:SetFont(addonTable.MainFont, 13, "OUTLINE")
+    bar.text:SetTextColor(1, 1, 1, 1)
+    bar.text:SetPoint("LEFT", 4, 0)
 
     bar.time = bar:CreateFontString(nil, "OVERLAY")
-    bar.time:SetFont(addonTable.MainFont, 11, "OUTLINE")
-    bar.time:SetPoint("RIGHT", -2, 0)
+    bar.time:SetFont(addonTable.MainFont, 13, "OUTLINE")
+    bar.time:SetTextColor(1, 1, 1, 1)
+    bar.time:SetPoint("RIGHT", -4, 0)
     return bar
 end
 
@@ -60,27 +64,23 @@ local function GetTrinketNames()
     return names
 end
 
--- NEW: Updated logic to collect and sort auras before displaying
 local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTrinkets)
     for _, bar in ipairs(pool) do bar:Hide() end
 
     local activeAuras = {}
     local searchList = {}
     
-    -- Parse user manual list
     if spellString and spellString ~= "" then
         for s in spellString:gmatch("([^,]+)") do
             table.insert(searchList, (s:gsub("^%s*(.-)%s*$", "%1")))
         end
     end
 
-    -- Add trinkets if enabled
     if includeTrinkets and unit == "player" then
         local trinkets = GetTrinketNames()
         for _, t in ipairs(trinkets) do table.insert(searchList, t) end
     end
 
-    -- Step 1: Collect active aura data
     for _, spellName in ipairs(searchList) do
         local duration, expirationTime, count = FindAuraByName(unit, spellName, filter)
         if duration then
@@ -93,15 +93,13 @@ local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTr
         end
     end
 
-    -- Step 2: Sort by expirationTime descending (Longest duration at the bottom)
-    -- Permanent buffs (0 expiration) are treated as having very high priority
+    -- Sort by duration (Longest at the bottom)
     table.sort(activeAuras, function(a, b)
         if a.expirationTime == 0 then return true end
         if b.expirationTime == 0 then return false end
         return a.expirationTime > b.expirationTime
     end)
 
-    -- Step 3: Display sorted auras
     for i, data in ipairs(activeAuras) do
         if not pool[i] then pool[i] = CreateAuraBar(group) end
         local bar = pool[i]
@@ -120,7 +118,6 @@ local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTr
         end
         
         bar:ClearAllPoints()
-        -- Stacking starts at BOTTOM (index 1), placing longest duration at the bottom
         bar:SetPoint("BOTTOM", group, "BOTTOM", 0, (i - 1) * (BAR_HEIGHT + SPACING))
         bar:Show()
     end
@@ -128,7 +125,8 @@ end
 
 AuraBars:SetScript("OnUpdate", function(self, elapsed)
     self.timer = (self.timer or 0) + elapsed
-    if self.timer < 0.1 then return end
+    -- FIX: Lowered interval to 0.03 for smoother movement
+    if self.timer < 0.03 then return end
     self.timer = 0
     if MageItHappenDB then
         UpdateAuraStack(BuffGroup, buffPool, MageItHappenDB.trackedBuffs, "player", "HELPFUL", MageItHappenDB.includeTrinkets)

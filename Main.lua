@@ -1,7 +1,6 @@
 local addonName, addonTable = ...
 
 -- NEW: Centralized legibility font and path
-addonTable.MainFont = "Fonts\\FRIZQT__.TTF" -- Standard WoW font, very legible with outline
 local FONT_SIZE_LARGE = 16
 
 local ttdFrame = CreateFrame("Frame", "MyTTDVisualFrame", UIParent, "BackdropTemplate")

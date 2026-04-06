@@ -3,6 +3,7 @@
 ## SavedVariables: MageItHappenDB
 
 Core/Init.lua
+Core/Absorb_Logic.lua
 Core/TTD_Core.lua
 Core/Logic_CDSync.lua
 UI/Cooldown_Tracker.lua
@@ -11,6 +12,7 @@ UI/Combat_Status.lua
 UI/Status_Bars.lua
 UI/Missing_Buffs.lua
 UI/Unit_Frames.lua
+UI/Absorb_Display.lua
 UI/Aura_Bars.lua
 Modules/Damage_Summary.lua
 Config.lua

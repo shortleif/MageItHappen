@@ -33,19 +33,25 @@ local function CreateUnitFrame(unit, name, width, height)
     f.mp:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     f.mp:SetStatusBarColor(0.2, 0.4, 1)
     
-    -- RESTORED: White Font + Black Outline
     local mainFontSize = (unit == "targettarget" and 12 or 18)
     if unit == "focus" then mainFontSize = 15 end
 
     f.nameText = f.hp:CreateFontString(nil, "OVERLAY")
     f.nameText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE") 
-    f.nameText:SetTextColor(1, 1, 1, 1) -- White
+    f.nameText:SetTextColor(1, 1, 1, 1)
     f.nameText:SetPoint("LEFT", 6, 0)
 
     f.valText = f.hp:CreateFontString(nil, "OVERLAY")
     f.valText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
     f.valText:SetTextColor(1, 1, 1, 1)
     f.valText:SetPoint("RIGHT", -6, 0)
+
+    if f.cb then
+        f.cb.text = f.cb:CreateFontString(nil, "OVERLAY")
+        f.cb.text:SetFont(addonTable.MainFont, 12, "OUTLINE")
+        f.cb.text:SetTextColor(1, 1, 1, 1)
+        f.cb.text:SetPoint("CENTER")
+    end
 
     if unit ~= "player" and unit ~= "targettarget" then
         f.cb = CreateFrame("StatusBar", nil, f, "BackdropTemplate")

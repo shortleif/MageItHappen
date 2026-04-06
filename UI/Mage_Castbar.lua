@@ -24,9 +24,9 @@ Castbar.Bar:SetPoint("TOPLEFT", 1, -1); Castbar.Bar:SetPoint("BOTTOMRIGHT", -1, 
 Castbar.Bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8") 
 Castbar.Bar:SetStatusBarColor(0.2, 0.5, 1)
 
--- LEGIBLE FONT FIX
 Castbar.Text = Castbar.Bar:CreateFontString(nil, "OVERLAY")
-Castbar.Text:SetFont(addonTable.MainFont, 12, "OUTLINE")
+Castbar.Text:SetFont(addonTable.MainFont, 13, "OUTLINE")
+Castbar.Text:SetTextColor(1, 1, 1, 1)
 Castbar.Text:SetPoint("CENTER", 0, 0)
 
 Castbar:RegisterEvent("UNIT_SPELLCAST_START")

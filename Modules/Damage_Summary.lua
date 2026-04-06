@@ -1,15 +1,15 @@
 local addonName, addonTable = ...
 local DamageSum = CreateFrame("Frame")
 local totalDamage, lastCastTime = 0, 0
-local AOE_SPELLS = { ["Arcane Explosion"] = true, ["Blizzard"] = true, ["Flamestrike"] = true }
+local AOE_SPELLS = { ["Arcane Explosion"] = true, ["Blizzard"] = true, ["Flamestrike"] = true,["Cone of Cold"] = true, ["Blastwave"] = true}
 
 local display = CreateFrame("Frame", "MIH_DamageSummaryFrame", UIParent)
 display:SetSize(200, 50); display:SetPoint("CENTER", 0, 50); display:Hide()
 
--- LEGIBLE FONT & TEXT INDEX FIX
 display.text = display:CreateFontString(nil, "OVERLAY")
-display.text:SetFont(addonTable.MainFont, 28, "OUTLINE")
-display.text:SetPoint("CENTER"); display.text:SetTextColor(1, 1, 1)
+display.text:SetFont(addonTable.MainFont, 32, "OUTLINE")
+display.text:SetTextColor(1, 1, 1, 1)
+display.text:SetPoint("CENTER")
 
 DamageSum:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 DamageSum:SetScript("OnEvent", function()
