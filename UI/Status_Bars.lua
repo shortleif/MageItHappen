@@ -1,7 +1,14 @@
 local addonName, addonTable = ...
-local StatusGroup = CreateFrame("Frame", "MIH_StatusGroup", UIParent, "BackdropTemplate")
+-- CHANGED: Converted to a Button with SecureUnitButtonTemplate
+local StatusGroup = CreateFrame("Button", "MIH_StatusGroup", UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
 
-local HP_HEIGHT, MANA_HEIGHT, SPACING = 6, 16, 2
+-- 1. Secure Unit Frame Attributes
+StatusGroup:SetAttribute("unit", "player")
+StatusGroup:RegisterForClicks("AnyUp")
+StatusGroup:SetAttribute("*type1", "target")
+StatusGroup:SetAttribute("*type2", "togglemenu")
+
+local HP_HEIGHT, MANA_HEIGHT, SPACING = 12, 16, 2
 local dynamicWidth = 250
 
 function addonTable.UpdateStatusBarsWidth(width)
@@ -12,13 +19,15 @@ end
 
 StatusGroup:SetSize(dynamicWidth, HP_HEIGHT + MANA_HEIGHT + SPACING)
 StatusGroup:SetPoint("TOP", _G["MIH_ShortCDRow"], "BOTTOM", 0, -4)
-StatusGroup:EnableMouse(false)
 
 local function CreateBar(name, r, g, b, height)
     local barContainer = CreateFrame("Frame", name .. "Container", StatusGroup, "BackdropTemplate")
     barContainer:SetSize(dynamicWidth, height)
     barContainer:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     barContainer:SetBackdropColor(0.1, 0.1, 0.1, 0.7); barContainer:SetBackdropBorderColor(0, 0, 0, 1)
+    
+    -- Ensure containers don't block clicks to the main StatusGroup button
+    barContainer:EnableMouse(false)
 
     local bar = CreateFrame("StatusBar", name, barContainer)
     bar:SetPoint("TOPLEFT", 1, -1); bar:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -38,9 +47,26 @@ StatusGroup.hpCont:SetPoint("TOP", 0, 0)
 StatusGroup.mpCont, manaBar = CreateBar("MIH_ManaBar", 0, 0.4, 1, MANA_HEIGHT)
 StatusGroup.mpCont:SetPoint("TOP", StatusGroup.hpCont, "BOTTOM", 0, -SPACING)
 
+-- 2. Tooltip logic
+StatusGroup:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetUnit("player")
+    GameTooltip:Show()
+end)
+StatusGroup:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+-- 3. Update Loop
 StatusGroup:SetScript("OnUpdate", function()
     local hp, maxHp = UnitHealth("player"), UnitHealthMax("player")
     healthBar:SetMinMaxValues(0, maxHp > 0 and maxHp or 1); healthBar:SetValue(hp)
+    
+    local _, class = UnitClass("player")
+    local color = class and RAID_CLASS_COLORS[class]
+    if color then
+        healthBar:SetStatusBarColor(color.r, color.g, color.b)
+    end
+    healthBar.text:SetText("")
+
     local mp, maxMp = UnitPower("player"), UnitPowerMax("player")
     manaBar:SetMinMaxValues(0, maxMp > 0 and maxMp or 1); manaBar:SetValue(mp)
     manaBar.text:SetText(string.format("%d / %d", mp, maxMp - mp))

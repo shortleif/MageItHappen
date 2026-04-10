@@ -20,17 +20,6 @@
     "TargetFrameToT",
     "addonTable",
     "UIParent",
-    "CreateFrame",
-    "UnitHealth",
-    "UnitHealthMax",
-    "UnitPower",
-    "UnitPowerMax",
-    "UnitName",
-    "UnitAura",
-    "GetTime",
-    "C_Timer",
-    "CombatLogGetCurrentEventInfo",
-    "UnitGUID",
     "RAID_CLASS_COLORS"
   ]
 }

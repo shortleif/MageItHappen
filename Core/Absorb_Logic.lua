@@ -6,26 +6,40 @@ addonTable.ActiveAbsorbs = {}
 -- Database from your reference
 -- Format: {school, basePoints, pointsPerLevel, baseLevel, maxLevel, spellLevel, healingMultiplier}
 local absorbDb = {
-    [11426] = {127, 437, 2.8, 40, 46, 40, 0.1}, -- Ice Barrier (Rank 1)
-    [13031] = {127, 548, 3.2, 46, 52, 46, 0.1}, -- Ice Barrier (Rank 2)
-    [13032] = {127, 677, 3.6, 52, 58, 52, 0.1}, -- Ice Barrier (Rank 3)
-    [13033] = {127, 817, 4.0, 58, 64, 58, 0.1}, -- Ice Barrier (Rank 4)
-    [1463]  = {1, 119, 0, 20, 0, 20, 0},        -- Mana Shield (Rank 1)
-    [8494]  = {1, 209, 0, 28, 0, 28, 0},        -- Mana Shield (Rank 2)
-    [8495]  = {1, 299, 0, 36, 0, 36, 0},        -- Mana Shield (Rank 3)
-    [10191] = {1, 389, 0, 44, 0, 44, 0},        -- Mana Shield (Rank 4)
-    [10192] = {1, 479, 0, 52, 0, 52, 0},        -- Mana Shield (Rank 5)
-    [10193] = {1, 569, 0, 60, 0, 60, 0},        -- Mana Shield (Rank 6)
-    [543]   = {4, 165, 0, 20, 0, 20, 0},        -- Fire Ward (Rank 1)
-    [8457]  = {4, 289, 0, 30, 0, 30, 0},        -- Fire Ward (Rank 2)
-    [8458]  = {4, 469, 0, 40, 0, 40, 0},        -- Fire Ward (Rank 3)
-    [10223] = {4, 674, 0, 50, 0, 50, 0},        -- Fire Ward (Rank 4)
-    [10225] = {4, 919, 0, 60, 0, 60, 0},        -- Fire Ward (Rank 5)
-    [6143]  = {16, 164, 0, 22, 0, 22, 0},       -- Frost Ward (Rank 1)
-    [8461]  = {16, 289, 0, 32, 0, 32, 0},       -- Frost Ward (Rank 2)
-    [8462]  = {16, 469, 0, 42, 0, 42, 0},       -- Frost Ward (Rank 3)
-    [10177] = {16, 674, 0, 52, 0, 52, 0},       -- Frost Ward (Rank 4)
-    [28609] = {16, 919, 0, 60, 0, 60, 0},       -- Frost Ward (Rank 5)
+    -- Ice Barrier (School 127 = All)
+    -- Format: {school, basePoints, pointsPerLevel, baseLevel, maxLevel, spellLevel, healingMultiplier}
+    [11426] = {127, 437, 2.8, 40, 46, 40, 0.1}, -- Rank 1
+    [13031] = {127, 548, 3.2, 46, 52, 46, 0.1}, -- Rank 2
+    [13032] = {127, 677, 3.6, 52, 58, 52, 0.1}, -- Rank 3
+    [13033] = {127, 817, 4.0, 58, 64, 58, 0.1}, -- Rank 4
+    [27134] = {127, 925, 5.0, 66, 70, 66, 0.1}, -- Rank 5 (Learned Lvl 66, scales to 70)
+    [33045] = {127, 1075, 0.0, 70, 70, 70, 0.1}, -- Rank 6 (Learned Lvl 70)
+
+    -- Mana Shield (School 1 = Physical)
+    -- TBC Patch 2.4.0: SP coefficient increased to 50%
+    [1463]  = {1, 120, 0, 20, 20, 20, 0.5}, -- Rank 1
+    [8494]  = {1, 210, 0, 28, 28, 28, 0.5}, -- Rank 2
+    [8495]  = {1, 300, 0, 36, 36, 36, 0.5}, -- Rank 3
+    [10191] = {1, 390, 0, 44, 44, 44, 0.5}, -- Rank 4
+    [10192] = {1, 480, 0, 52, 52, 52, 0.5}, -- Rank 5
+    [10193] = {1, 570, 0, 60, 60, 60, 0.5}, -- Rank 6
+    [27131] = {1, 715, 0, 68, 70, 68, 0.5}, -- Rank 7 (TBC Learned Lvl 68)
+
+    -- Fire Ward (School 4 = Fire)
+    [543]   = {4, 165, 0, 20, 20, 20, 0.1}, -- Rank 1
+    [8457]  = {4, 290, 0, 30, 30, 30, 0.1}, -- Rank 2
+    [8458]  = {4, 470, 0, 40, 40, 40, 0.1}, -- Rank 3
+    [10223] = {4, 675, 0, 50, 50, 50, 0.1}, -- Rank 4
+    [10225] = {4, 875, 0, 60, 60, 60, 0.1}, -- Rank 5
+    [27128] = {4, 1125, 0, 69, 70, 69, 0.1}, -- Rank 6 (TBC Learned Lvl 69)
+
+    -- Frost Ward (School 16 = Frost)
+    [6143]  = {16, 165, 0, 22, 22, 22, 0.1}, -- Rank 1
+    [8461]  = {16, 290, 0, 32, 32, 32, 0.1}, -- Rank 2
+    [8462]  = {16, 470, 0, 42, 42, 42, 0.1}, -- Rank 3
+    [10177] = {16, 675, 0, 52, 52, 52, 0.1}, -- Rank 4
+    [28609] = {16, 920, 0, 60, 60, 60, 0.1}, -- Rank 5
+    [27129] = {16, 1220, 0, 70, 70, 70, 0.1}, -- Rank 6 (TBC Learned Lvl 70)
 }
 
 local function CalculateInitialAbsorb(spellId)
