@@ -14,6 +14,7 @@ UI/Missing_Buffs.lua
 UI/Unit_Frames.lua
 UI/Absorb_Display.lua
 UI/Aura_Bars.lua
+UI/Procs.lua
 Modules/Damage_Summary.lua
 Config.lua
 Main.lua

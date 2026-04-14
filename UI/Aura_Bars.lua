@@ -1,24 +1,40 @@
 local addonName, addonTable = ...
+-- Ensure the parent frame covers the screen so children anchor correctly
 local AuraBars = CreateFrame("Frame", "MIH_AuraBars", UIParent)
+AuraBars:SetAllPoints(UIParent)
 
--- Configuration
+-- 1. Configuration
 local BAR_WIDTH, BAR_HEIGHT, SPACING = 270, 20, 2
 
 local BuffGroup = CreateFrame("Frame", "MIH_BuffGroup", AuraBars)
 local DebuffGroup = CreateFrame("Frame", "MIH_DebuffGroup", AuraBars)
 
-BuffGroup:SetSize(BAR_WIDTH, 270)
-DebuffGroup:SetSize(BAR_WIDTH, 270)
+-- Use dynamic height to ensure DebuffGroup stays relative to BuffGroup if needed
+BuffGroup:SetWidth(BAR_WIDTH)
+DebuffGroup:SetWidth(BAR_WIDTH)
 AuraBars:SetFrameStrata("HIGH")
 AuraBars:SetFrameLevel(50)
 
--- Anchor positions
-if _G["MIH_CooldownTracker"] then
-    BuffGroup:SetPoint("BOTTOMLEFT", _G["MIH_CooldownTracker"], "TOPLEFT", -277, -25)
-    DebuffGroup:SetPoint("BOTTOMRIGHT", _G["MIH_CooldownTracker"], "TOPRIGHT", 277, -25)
-else
-    BuffGroup:SetPoint("CENTER", -100, 100)
-    DebuffGroup:SetPoint("CENTER", 100, 100)
+-- 2. Logic to apply anchors once frames are ready
+local function ApplyAnchors()
+    BuffGroup:ClearAllPoints()
+    DebuffGroup:ClearAllPoints()
+
+    -- Player Buffs: Centered below CD Tracker
+    if _G["MIH_CooldownTracker"] then
+        -- Using your 35 offset (Note: positive Y moves it UP toward/into the tracker)
+        BuffGroup:SetPoint("TOP", _G["MIH_CooldownTracker"], "BOTTOM", 0, 35)
+    else
+        BuffGroup:SetPoint("CENTER", 0, -100)
+    end
+
+    -- Target Debuffs: Above Target Frame
+    if _G["MIH_TargetFrame"] then
+        -- Anchored BOTTOM to Target TOP means it grows UPWARDS
+        DebuffGroup:SetPoint("BOTTOM", _G["MIH_TargetFrame"], "TOP", 0, 10)
+    else
+        DebuffGroup:SetPoint("CENTER", 0, 100)
+    end
 end
 
 local function CreateAuraBar(parent)
@@ -28,15 +44,12 @@ local function CreateAuraBar(parent)
     bar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     bar:SetBackdropColor(0, 0, 0, 0.7); bar:SetBackdropBorderColor(0, 0, 0, 1)
     
-    -- Updated to 13pt for better legibility on 270px bars
     bar.text = bar:CreateFontString(nil, "OVERLAY")
     bar.text:SetFont(addonTable.MainFont, 13, "OUTLINE")
-    bar.text:SetTextColor(1, 1, 1, 1)
     bar.text:SetPoint("LEFT", 4, 0)
 
     bar.time = bar:CreateFontString(nil, "OVERLAY")
     bar.time:SetFont(addonTable.MainFont, 13, "OUTLINE")
-    bar.time:SetTextColor(1, 1, 1, 1)
     bar.time:SetPoint("RIGHT", -4, 0)
     return bar
 end
@@ -52,19 +65,8 @@ local function FindAuraByName(unit, targetName, filter)
     return nil
 end
 
-local function GetTrinketNames()
-    local names = {}
-    for _, slot in ipairs({13, 14}) do
-        local id = GetInventoryItemID("player", slot)
-        if id then
-            local name = GetItemInfo(id)
-            if name then table.insert(names, name) end
-        end
-    end
-    return names
-end
-
-local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTrinkets)
+-- 3. Unified Update Logic with Directional Stacking
+local function UpdateAuraStack(group, pool, spellString, unit, filter, growUp)
     for _, bar in ipairs(pool) do bar:Hide() end
 
     local activeAuras = {}
@@ -74,11 +76,6 @@ local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTr
         for s in spellString:gmatch("([^,]+)") do
             table.insert(searchList, (s:gsub("^%s*(.-)%s*$", "%1")))
         end
-    end
-
-    if includeTrinkets and unit == "player" then
-        local trinkets = GetTrinketNames()
-        for _, t in ipairs(trinkets) do table.insert(searchList, t) end
     end
 
     for _, spellName in ipairs(searchList) do
@@ -93,12 +90,11 @@ local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTr
         end
     end
 
-    -- Sort by duration (Longest at the bottom)
-    table.sort(activeAuras, function(a, b)
-        if a.expirationTime == 0 then return true end
-        if b.expirationTime == 0 then return false end
-        return a.expirationTime > b.expirationTime
-    end)
+    -- Sort: Shortest time closest to the anchor point
+    table.sort(activeAuras, function(a, b) return a.expirationTime < b.expirationTime end)
+
+    -- Dynamic Height
+    group:SetHeight(#activeAuras > 0 and (#activeAuras * (BAR_HEIGHT + SPACING)) or 1)
 
     for i, data in ipairs(activeAuras) do
         if not pool[i] then pool[i] = CreateAuraBar(group) end
@@ -111,25 +107,40 @@ local function UpdateAuraStack(group, pool, spellString, unit, filter, includeTr
         bar.text:SetText((data.count and data.count > 1) and (data.name.." ("..data.count..")") or data.name)
         bar.time:SetText(remaining > 0 and string.format("%.1f", remaining) or "")
         
-        if unit == "player" then 
-            bar:SetStatusBarColor(0, 0.5, 1) 
-        else 
-            bar:SetStatusBarColor(0.8, 0.2, 1) 
-        end
+        bar:SetStatusBarColor(unit == "player" and 0 or 0.8, unit == "player" and 0.5 or 0.2, 1)
         
         bar:ClearAllPoints()
-        bar:SetPoint("BOTTOM", group, "BOTTOM", 0, (i - 1) * (BAR_HEIGHT + SPACING))
+        if growUp then
+            -- GROW UP: Anchor BOTTOM of bar to BOTTOM of group
+            bar:SetPoint("BOTTOM", group, "BOTTOM", 0, (i - 1) * (BAR_HEIGHT + SPACING))
+        else
+            -- GROW DOWN: Anchor TOP of bar to TOP of group
+            bar:SetPoint("TOP", group, "TOP", 0, -(i - 1) * (BAR_HEIGHT + SPACING))
+        end
         bar:Show()
     end
 end
 
+-- 4. Main Event/Update Loop
+AuraBars:RegisterEvent("PLAYER_ENTERING_WORLD")
+AuraBars:RegisterEvent("PLAYER_TARGET_CHANGED")
+AuraBars:SetScript("OnEvent", ApplyAnchors)
+
 AuraBars:SetScript("OnUpdate", function(self, elapsed)
     self.timer = (self.timer or 0) + elapsed
-    -- FIX: Lowered interval to 0.03 for smoother movement
     if self.timer < 0.03 then return end
     self.timer = 0
+    
+    -- Safety check: Re-apply anchors if globals were missing during load
+    if not self.anchored and _G["MIH_CooldownTracker"] and _G["MIH_TargetFrame"] then
+        ApplyAnchors()
+        self.anchored = true
+    end
+
     if MageItHappenDB then
-        UpdateAuraStack(BuffGroup, buffPool, MageItHappenDB.trackedBuffs, "player", "HELPFUL", MageItHappenDB.includeTrinkets)
-        UpdateAuraStack(DebuffGroup, debuffPool, MageItHappenDB.trackedDebuffs, "target", "HARMFUL")
+        -- Player Buffs: growUp = false (Stacks DOWN)
+        UpdateAuraStack(BuffGroup, buffPool, MageItHappenDB.trackedBuffs, "player", "HELPFUL", false)
+        -- Target Debuffs: growUp = true (Stacks UP)
+        UpdateAuraStack(DebuffGroup, debuffPool, MageItHappenDB.trackedDebuffs, "target", "HARMFUL", true)
     end
 end)

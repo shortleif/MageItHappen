@@ -11,9 +11,9 @@ BuffReminders:SetFrameLevel(30)
 
 -- Anchor logic based on Cooldown Tracker
 if _G["MIH_LongCDRow"] then
-    BuffReminders:SetPoint("TOP", _G["MIH_LongCDRow"], "BOTTOM", 0, -10)
+    BuffReminders:SetPoint("TOP", _G["MIH_ShortCDRow"], "TOP", 0, 60)
 else
-    BuffReminders:SetPoint("CENTER", 0, -300) 
+    BuffReminders:SetPoint("CENTER", 0, 300) 
 end
 
 -- Simplified Icon Factory (Standard Frame, not a Secure Button)
