@@ -15,6 +15,9 @@ UI/Unit_Frames.lua
 UI/Absorb_Display.lua
 UI/Aura_Bars.lua
 UI/Procs.lua
+UI/Arcane_Blast_Tracker.lua
+UI/Consumable_Tracker.lua
 Modules/Damage_Summary.lua
 Config.lua
 Main.lua
+

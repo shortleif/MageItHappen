@@ -21,6 +21,7 @@ Config:SetScript("OnEvent", function(self, event, name)
         trackedBuffs = "Arcane Power, Icy Veins",
         trackedDebuffs = "Frost Nova, Frostbolt",
         includeTrinkets = true,
+        reverseCDSaturation = false,
     }
 
     for k, v in pairs(defaults) do
@@ -156,6 +157,9 @@ function Config:InitializeUI()
     CreateHeader("Targeting & TTD", 16, -60)
     CreateCheckbox("Display TTD Text", "showTTD", 16, -85)
     CreateCheckbox("TTD: Boss Only", "showOnlyInEncounter", 16, -120)
+
+    CreateHeader("Cooldown Visuals", 300, -215)
+    CreateCheckbox("Reverse CD Saturation", "reverseCDSaturation", 300, -240)
 
     CreateHeader("Buffs & AoE Tracking", 16, -180)
     CreateCheckbox("Show AoE Damage Summary", "showDamageSummary", 16, -205)

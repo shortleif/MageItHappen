@@ -3,7 +3,7 @@ local combatTextFrame = CreateFrame("Frame", "MIH_CombatStatusFrame", UIParent)
 combatTextFrame:SetSize(200, 20)
 
 if _G["MageCustomCastbar"] then
-    combatTextFrame:SetPoint("BOTTOM", _G["MageCustomCastbar"], "TOP", 0, 2)
+    combatTextFrame:SetPoint("BOTTOM", _G["MageCustomCastbar"], "TOP", 0, 55)
 else
     combatTextFrame:SetPoint("CENTER", 0, -50)
 end
