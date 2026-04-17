@@ -1,88 +1,81 @@
 local addonName, addonTable = ...
+local BuffReminders = CreateFrame("Frame", "MIH_BuffReminders", UIParent, "BackdropTemplate")
 
--- 1. Create the Group Container
--- We use SecureHandlerStateTemplate on the parent only to allow the engine to hide it
-local StatusGroup = CreateFrame("Frame", "MIH_StatusGroup", UIParent, "SecureHandlerStateTemplate")
-StatusGroup:SetSize(80, 40)
-StatusGroup:SetPoint("BOTTOM", _G["MageCustomCastbar"] or UIParent, "TOP", 0, 10)
+-- Configuration
+local BTN_SIZE = 30
+local SPACING = 4
+local UPDATE_INTERVAL = 0.5 
 
--- This driver tells the UI engine to hide the frame if in combat, dead, or a ghost
-RegisterStateDriver(StatusGroup, "visibility", "[combat][dead][ghost] hide; show")
+BuffReminders:SetSize((BTN_SIZE * 3) + (SPACING * 2), BTN_SIZE)
+BuffReminders:SetFrameLevel(30)
 
--- 2. Helper to create a reminder icon (Purely visual frames)
-local function CreateReminder(name, texture)
-    -- Using a basic Frame + BackdropTemplate for your specific border style
-    local f = CreateFrame("Frame", "MIH_"..name.."Reminder", StatusGroup, "BackdropTemplate")
-    f:SetSize(32, 32)
+-- Anchor logic based on Cooldown Tracker
+if _G["MIH_LongCDRow"] then
+    BuffReminders:SetPoint("TOP", _G["MIH_ShortCDRow"], "TOP", 0, 60)
+else
+    BuffReminders:SetPoint("CENTER", 0, 300) 
+end
+
+-- Simplified Icon Factory (Standard Frame, not a Secure Button)
+local function CreateReminderIcon(spellID)
+    local f = CreateFrame("Frame", nil, BuffReminders, "BackdropTemplate")
+    f:SetSize(BTN_SIZE, BTN_SIZE)
     
-    -- Restored your exact styling
-    f:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
+    local info = C_Spell.GetSpellInfo(spellID)
+    if info then 
+        f.icon = f:CreateTexture(nil, "ARTWORK")
+        f.icon:SetPoint("TOPLEFT", 1, -1)
+        f.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        f.icon:SetTexture(info.iconID)
+    end
+
+    f:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
+    f:SetBackdropColor(0.1, 0.1, 0.1, 0.7)
     f:SetBackdropBorderColor(0, 0, 0, 1)
 
-    f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetAllPoints()
-    f.icon:SetTexture(texture)
-    f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    
-    f:Hide()
     return f
 end
 
-local intBuff = CreateReminder("Intellect", "Interface\\Icons\\Spell_Holy_MagicalSavant")
-intBuff:SetPoint("LEFT", 0, 0)
+-- Level-based Mana Ruby check
+local rubyID = (UnitLevel("player") >= 68) and 27101 or 22044
+local rubyIcon = CreateReminderIcon(rubyID) 
+local intIcon = CreateReminderIcon(27126) -- Arcane Intellect
+local armorIcon = CreateReminderIcon(27125) -- Mage Armor
 
-local armorBuff = CreateReminder("Armor", "Interface\\Icons\\Spell_Nature_AuraOfMagicResist")
-armorBuff:SetPoint("LEFT", 36, 0)
+rubyIcon:SetPoint("LEFT", 0, 0)
+intIcon:SetPoint("LEFT", rubyIcon, "RIGHT", SPACING, 0)
+armorIcon:SetPoint("LEFT", intIcon, "RIGHT", SPACING, 0)
 
--- 3. Update Logic
-local function UpdateReminders()
-    -- Check Intellect/Brilliance
-    local hasInt = false
-    for i = 1, 40 do
-        local name = UnitBuff("player", i)
-        if not name then break end
-        if name:find("Arcane Intellect") or name:find("Arcane Brilliance") then
-            hasInt = true
-            break
-        end
-    end
-    if hasInt then intBuff:Hide() else intBuff:Show() end
+local function UpdateBuffStatus()
+    -- Update armor texture based on preference
+    local preferredArmor = (MageItHappenDB and MageItHappenDB.preferredArmor) or 27125
+    local armorInfo = C_Spell.GetSpellInfo(preferredArmor)
+    if armorInfo then armorIcon.icon:SetTexture(armorInfo.iconID) end
 
-    -- Check Armor
-    local hasArmor = false
-    local preferredArmorID = MageItHappenDB and MageItHappenDB.preferredArmor or 27125
-    local pArmorName, _, pArmorIcon = GetSpellInfo(preferredArmorID)
+    -- Mana Ruby Count Check
+    local hasRuby = C_Item.GetItemCount(22044) > 0 or C_Item.GetItemCount(22043) > 0 or C_Item.GetItemCount(8008) > 0
+    rubyIcon:SetAlpha(hasRuby and 0 or 1)
 
-    if pArmorName then
-        for i = 1, 40 do
-            local name = UnitBuff("player", i)
-            if not name then break end
-            if name == pArmorName then
-                hasArmor = true
-                break
-            end
-        end
-        
-        if hasArmor then 
-            armorBuff:Hide() 
-        else 
-            armorBuff:Show()
-            armorBuff.icon:SetTexture(pArmorIcon)
-        end
-    end
+    -- Intellect Aura Check
+    local hasInt = AuraUtil.FindAuraByName("Arcane Intellect", "player", "HELPFUL") 
+                or AuraUtil.FindAuraByName("Arcane Brilliance", "player", "HELPFUL")
+    intIcon:SetAlpha(hasInt and 0 or 1)
+
+    -- Combined Armor Check
+    local hasArmor = AuraUtil.FindAuraByName("Mage Armor", "player", "HELPFUL")
+                  or AuraUtil.FindAuraByName("Ice Armor", "player", "HELPFUL")
+                  or AuraUtil.FindAuraByName("Frost Armor", "player", "HELPFUL")
+                  or AuraUtil.FindAuraByName("Molten Armor", "player", "HELPFUL")
+    armorIcon:SetAlpha(hasArmor and 0 or 1)
 end
 
--- 4. Events
-StatusGroup:RegisterEvent("UNIT_AURA")
-StatusGroup:RegisterEvent("PLAYER_ENTERING_WORLD")
-
-StatusGroup:SetScript("OnEvent", function(self, event, unit)
-    if event == "UNIT_AURA" and unit ~= "player" then return end
-    UpdateReminders()
+BuffReminders:SetScript("OnUpdate", function(self, elapsed)
+    self.lastUpdate = (self.lastUpdate or 0) + elapsed
+    if self.lastUpdate >= UPDATE_INTERVAL then
+        UpdateBuffStatus()
+        self.lastUpdate = 0
+    end
 end)
 
--- Initial Check
-UpdateReminders()
+-- Initial check
+UpdateBuffStatus()

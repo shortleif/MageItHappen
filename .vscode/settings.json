@@ -21,5 +21,6 @@
     "addonTable",
     "UIParent",
     "RAID_CLASS_COLORS"
-  ]
+  ],
+  "Lua.type.weakUnionCheck": true
 }

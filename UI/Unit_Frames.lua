@@ -10,7 +10,7 @@ local function HideBlizzard()
 end
 HideBlizzard()
 
--- 2. Aura (Buff) Icon Factory - 32px, No Swipe
+-- 2. Aura (Buff) Icon Factory
 local function CreateAuraButton(parent, unit, index)
     local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
     b:SetSize(32, 32) 
@@ -23,22 +23,26 @@ local function CreateAuraButton(parent, unit, index)
     b:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     b:SetBackdropBorderColor(0, 0, 0, 1)
 
-    -- BIG BOLD Countdown Text (No swipe clutter)
     b.durationText = b:CreateFontString(nil, "OVERLAY")
     b.durationText:SetFont(addonTable.MainFont, 14, "THICKOUTLINE")
     b.durationText:SetPoint("CENTER", 0, 0)
     b.durationText:SetTextColor(1, 1, 1)
 
-    -- Stacks/Count Text
     b.count = b:CreateFontString(nil, "OVERLAY")
     b.count:SetFont(addonTable.MainFont, 12, "OUTLINE")
     b.count:SetPoint("BOTTOMRIGHT", 2, -2)
 
+    -- Tooltip Logic: Set the tooltip on hover
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+        -- "HELPFUL" filters for Buffs. Use "HARMFUL" if you ever add debuffs.
         GameTooltip:SetUnitAura(unit, index, "HELPFUL")
+        GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    b:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
 
     return b
 end
@@ -52,12 +56,8 @@ local function CreateUnitFrame(unit, name, width, height)
     f:SetAttribute("*type1", "target")
     f:SetAttribute("*type2", "togglemenu")
     
-    f:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetUnit(self:GetAttribute("unit"))
-        GameTooltip:Show()
-    end)
-    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f:SetFrameStrata("LOW")
+    f:SetFrameLevel(10)
 
     f:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
     f:SetBackdropColor(0, 0, 0, 0.8); f:SetBackdropBorderColor(0, 0, 0, 1)
@@ -66,13 +66,27 @@ local function CreateUnitFrame(unit, name, width, height)
     f.hp:SetPoint("TOPLEFT", 1, -1); f.hp:SetPoint("TOPRIGHT", -1, -1)
     f.hp:SetHeight(height * 0.75)
     f.hp:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    f.hp:SetFrameLevel(15)
     
     f.mp = CreateFrame("StatusBar", nil, f)
     f.mp:SetPoint("TOPLEFT", f.hp, "BOTTOMLEFT", 0, -1); f.mp:SetPoint("BOTTOMRIGHT", -1, 1)
     f.mp:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     f.mp:SetStatusBarColor(0.2, 0.4, 1)
+    f.mp:SetFrameLevel(15)
     
-    -- Adjusted font size for Pet and ToT
+    -- RAID TARGET MARKER OVERLAY
+    f.MarkerOverlay = CreateFrame("Frame", nil, f)
+    f.MarkerOverlay:SetAllPoints(f)
+    f.MarkerOverlay:SetFrameLevel(100)
+
+    local markerSize = (unit == "targettarget" or unit == "pet" or unit == "focus") and 18 or 28
+
+    f.RaidMarker = f.MarkerOverlay:CreateTexture(nil, "OVERLAY", nil, 7)
+    f.RaidMarker:SetSize(markerSize, markerSize)
+    f.RaidMarker:SetPoint("CENTER", f.MarkerOverlay, "TOP", 0, 2)
+    f.RaidMarker:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    f.RaidMarker:Hide()
+
     local mainFontSize = (unit == "targettarget" or unit == "pet") and 12 or 18
     if unit == "focus" then mainFontSize = 15 end
 
@@ -84,12 +98,11 @@ local function CreateUnitFrame(unit, name, width, height)
     f.valText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
     f.valText:SetPoint("RIGHT", -6, 0)
 
-    -- Buff Container: 40 slots for Target
     if unit == "target" then
         f.buffs = {}
         local auraParent = CreateFrame("Frame", nil, f)
         auraParent:SetSize(width, 1)
-        auraParent:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -30) -- Clears castbar
+        auraParent:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -30)
         
         for i = 1, 40 do 
             local b = CreateAuraButton(auraParent, unit, i)
@@ -100,7 +113,6 @@ local function CreateUnitFrame(unit, name, width, height)
         end
     end
 
-    -- FIXED castbar initialization order
     if unit ~= "player" and unit ~= "targettarget" then
         f.cb = CreateFrame("StatusBar", nil, f, "BackdropTemplate")
         f.cb:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -3); f.cb:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -3)
@@ -126,12 +138,11 @@ target:SetPoint("CENTER", 300, -185)
 local tot = CreateUnitFrame("targettarget", "MIH_ToTFrame", 130, 22)
 tot:SetPoint("LEFT", target, "RIGHT", 10, 0)
 
--- PET FRAME: Left of centered Status bars
 local pet = CreateUnitFrame("pet", "MIH_PetFrame", 130, 22)
 if _G["MIH_StatusGroup"] then
     pet:SetPoint("RIGHT", _G["MIH_StatusGroup"], "LEFT", -15, 0)
 else
-    pet:SetPoint("CENTER", -300, -185) -- Fallback
+    pet:SetPoint("CENTER", -300, -185)
 end
 
 local focus = CreateUnitFrame("focus", "MIH_FocusFrame", 200, 28)
@@ -147,14 +158,9 @@ local function UpdateAuras(f, unit)
         if name then
             b.icon:SetTexture(icon)
             b.count:SetText(count > 1 and tostring(count) or "")
-            
             if duration and duration > 0 then
                 local remaining = expirationTime - now
-                if remaining > 60 then
-                    b.durationText:SetText(tostring(math.floor(remaining/60)).."m")
-                else
-                    b.durationText:SetText(tostring(math.floor(remaining)))
-                end
+                b.durationText:SetText(remaining > 60 and math.floor(remaining/60).."m" or math.floor(remaining))
             else 
                 b.durationText:SetText("")
             end
@@ -190,6 +196,19 @@ local function UpdateFrame(f)
         f.mp:SetMinMaxValues(0, mpMax > 0 and mpMax or 1); f.mp:SetValue(mp)
     end
 
+    -- RAID MARKER UPDATE
+    local mark = GetRaidTargetIndex(unit)
+    if mark then
+        local left = (mark - 1) % 4 * 0.25
+        local right = left + 0.25
+        local top = math.floor((mark - 1) / 4) * 0.25
+        local bottom = top + 0.25
+        f.RaidMarker:SetTexCoord(left, right, top, bottom)
+        f.RaidMarker:Show()
+    else
+        f.RaidMarker:Hide()
+    end
+
     UpdateAuras(f, unit)
 
     if f.cb then
@@ -206,6 +225,5 @@ UnitFrames:SetScript("OnUpdate", function(self, elapsed)
     self.timer = (self.timer or 0) + elapsed
     if self.timer < 0.03 then return end 
     self.timer = 0
-    -- Added pet frame update
     UpdateFrame(target); UpdateFrame(tot); UpdateFrame(pet); UpdateFrame(focus)
 end)
