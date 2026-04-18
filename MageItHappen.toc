@@ -2,10 +2,18 @@
 ## Title: MageItHappen
 ## SavedVariables: MageItHappenDB
 
+# Core Logic
 Core/Init.lua
 Core/Absorb_Logic.lua
 Core/TTD_Core.lua
 Core/Logic_CDSync.lua
+
+# Modules
+Modules/Damage_Summary.lua
+Modules/Rotation_Logic.lua
+
+# UI Components (Moved TTD here)
+UI/TTD.lua
 UI/Cooldown_Tracker.lua
 UI/Mage_Castbar.lua
 UI/Combat_Status.lua
@@ -17,7 +25,8 @@ UI/Aura_Bars.lua
 UI/Procs.lua
 UI/Arcane_Blast_Tracker.lua
 UI/Consumable_Tracker.lua
-Modules/Damage_Summary.lua
+UI/Rotation_Tracker.lua
+
+# Entry Point
 Config.lua
 Main.lua
-
