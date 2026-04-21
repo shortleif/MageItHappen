@@ -20,7 +20,11 @@
     "TargetFrameToT",
     "addonTable",
     "UIParent",
-    "RAID_CLASS_COLORS"
+    "RAID_CLASS_COLORS",
+    "GetSpellInfo",
+    "UnitDebuff",
+    "UnitAura",
+    "UnitBuff"
   ],
   "Lua.type.weakUnionCheck": true
 }

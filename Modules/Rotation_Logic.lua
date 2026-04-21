@@ -4,9 +4,13 @@ addonTable.Rotation = Rotation
 
 -- Constants based on TBC Arcane Mechanics
 local AB_MAX_STACK_COST = 634
-local MANA_EMERALD_REGEN = 2400
-local MANA_POT_REGEN = 2200
+local MANA_EMERALD_REGEN = 2340
+local MANA_POT_REGEN = 1800
 local AB_SPELL_ID = 30451
+
+-- Updated Item ID for Mana Emerald
+local MANA_EMERALD_ID = 22044
+local MANA_POT_ID = 22832
 
 -- Helper to check Arcane Blast stacks (DEBUFF on the player)
 local function GetArcaneBlastStacks()
@@ -14,8 +18,7 @@ local function GetArcaneBlastStacks()
     if not spellName then return 0 end
     
     for i = 1, 40 do
-        -- Use local variables to avoid leaking into other addons
-        local name, _, _, count = UnitDebuff("player", i)
+        local name, _, count = UnitDebuff("player", i)
         if not name then break end
         if name == spellName then
             return count or 0
@@ -30,42 +33,70 @@ local function GetArcaneBlastCastTime()
     return (castTime or 1500) / 1000
 end
 
+-- Helper to check if an item is ready to use (Handles multiple API versions)
+local function IsItemReady(itemID)
+    if (GetItemCount(itemID) or 0) == 0 then return false end
+    
+    local startTime, duration
+    if C_Container and C_Container.GetItemCooldown then
+        startTime, duration = C_Container.GetItemCooldown(itemID)
+    else
+        startTime, duration = GetItemCooldown(itemID)
+    end
+    
+    -- Handle table vs number return formats
+    if type(startTime) == "table" then
+        local t = startTime
+        startTime = t.startTime
+        duration = t.duration
+    end
+    
+    return (not startTime or startTime == 0) or (GetTime() > (startTime + (duration or 0)))
+end
+
+-- Calculate current mana + available consumables (No Evocation)
+function Rotation:GetTotalManaAvailable()
+    local currentMana = UnitPower("player", 0)
+    local extra = 0
+    
+    if IsItemReady(MANA_EMERALD_ID) then
+        extra = extra + MANA_EMERALD_REGEN
+    end
+    
+    if IsItemReady(MANA_POT_ID) then
+        extra = extra + MANA_POT_REGEN
+    end
+    
+    return currentMana + extra
+end
+
 function Rotation:GetManaState()
-    -- Hide tracker when out of combat to prevent nil/idle errors
+    -- Idle when out of combat
     if not UnitAffectingCombat("player") then return "IDLE" end
 
-    local currentMana = UnitPower("player", 0)
+    local currentEffMana = self:GetTotalManaAvailable()
     local maxMana = UnitPowerMax("player", 0)
     
-    -- Corrected reference to your TTD_Core module
     local ttd = 999
     if addonTable.TTD_Core and addonTable.TTD_Core.GetCurrentTTD then
         ttd = addonTable.TTD_Core.GetCurrentTTD() or 999
     end
 
-    -- Fight start/invalid TTD handling
-    if ttd >= 999 or ttd <= 0 then return "CONSERVE" end
+    -- STARTUP Phase: Immediately recommend Arcane Blast while TTD calculates
+    if ttd >= 999 then return "STARTUP" end
+    
+    -- Safety for zero/negative TTD
+    if ttd <= 0 then return "CONSERVE" end
 
-    -- 1. Calculate Mana Income
+    -- Estimate regen: ~2% max mana per 5s (Mage Armor)
     local regenPerSecond = (maxMana * 0.02) / 5 
-    local totalManaIncome = currentMana + (regenPerSecond * ttd)
+    local totalManaIncome = currentEffMana + (regenPerSecond * ttd)
 
-    -- Consumable check using your tracker
-    if addonTable.ConsumableTracker and addonTable.ConsumableTracker.IsReady then
-        if addonTable.ConsumableTracker:IsReady("Mana Emerald") then
-            totalManaIncome = totalManaIncome + MANA_EMERALD_REGEN
-        end
-        if addonTable.ConsumableTracker:IsReady("Super Mana Potion") then
-            totalManaIncome = totalManaIncome + MANA_POT_REGEN
-        end
-    end
-
-    -- 2. Calculate Burn Cost
     local castTime = GetArcaneBlastCastTime()
     local numCasts = ttd / castTime
     local totalBurnCost = numCasts * AB_MAX_STACK_COST
 
-    -- 3. Decision Logic
+    -- Decision Logic: Can we afford to spam AB until death?
     if totalManaIncome >= totalBurnCost then
         return "BURN"
     end
@@ -73,23 +104,52 @@ function Rotation:GetManaState()
     return "CONSERVE"
 end
 
-function Rotation:GetRecommendedAction()
-    local state = self:GetManaState()
-    
-    if state == "IDLE" then
-        return nil, nil
+local function GetArcaneBlastStacks()
+    local spellName = GetSpellInfo(AB_SPELL_ID)
+    if not spellName then return 0 end
+    for i = 1, 40 do
+        local name, _, _, count = UnitDebuff("player", i)
+        if not name then break end
+        if name == spellName then return count or 0 end
     end
+    return 0
+end
 
+-- Generates a sequence of spell textures based on state
+function Rotation:GetSequence()
+    local state = self:GetManaState()
     local abStacks = GetArcaneBlastStacks()
+    local sequence = {}
 
-    if state == "BURN" then
-        return "Interface\\Icons\\Spell_Arcane_Blast", "|cffff0000BURN|r"
-    else
-        -- Conserve Phase logic
-        if abStacks >= 3 then
-            return "Interface\\Icons\\Spell_Frost_FrostBolt02", "|cff00ffffCONSERVE|r\n(Drop Stacks)"
-        else
-            return "Interface\\Icons\\Spell_Arcane_Blast", "|cff00ff00CONSERVE|r\n(Build AB)"
+    local abTex = "Interface\\Icons\\Spell_Arcane_Blast"
+    local fbTex = "Interface\\Icons\\Spell_Frost_FrostBolt02"
+    local cdTex = "Interface\\Icons\\Spell_Arcane_MindMastery" -- Cooldowns
+
+    if state == "STARTUP" then
+        -- Sequence: AB until 3 stacks, then show CD reminder
+        for i = 1, (3 - abStacks) do table.insert(sequence, abTex) end
+        table.insert(sequence, cdTex)
+        while #sequence < 5 do table.insert(sequence, abTex) end
+        
+    elseif state == "BURN" then
+        -- Sequence: Pure AB spam
+        for i = 1, 5 do table.insert(sequence, abTex) end
+        
+    elseif state == "CONSERVE" then
+        -- Logic for 3xAB / 3xFB loop
+        local currentStacks = abStacks
+        for i = 1, 5 do
+            if currentStacks < 3 then
+                table.insert(sequence, abTex)
+                currentStacks = currentStacks + 1
+            else
+                table.insert(sequence, fbTex)
+                -- We assume after 3 FBs the stacks drop. 
+                -- Simplified lookahead logic:
+                if #sequence >= 3 then currentStacks = 0 end 
+            end
         end
     end
+
+    return sequence, state
 end
