@@ -5,7 +5,7 @@ addonTable.RotationTracker = RotationTracker
 function RotationTracker:InitializeUI()
     local frame = CreateFrame("Frame", "MIHRotationFrame", UIParent, "BackdropTemplate")
     self.frame = frame
-    frame:SetSize(220, 70) -- Wider for sequence
+    frame:SetSize(230, 65)
     frame:SetPoint("RIGHT", _G["MageCustomCastbar"] or UIParent, "LEFT", -45, -42)
     
     frame:SetBackdrop({
@@ -14,31 +14,27 @@ function RotationTracker:InitializeUI()
         tile = true, tileSize = 16, edgeSize = 2,
     })
 
-    -- Icon Pool
     self.icons = {}
     for i = 1, 5 do
         local icon = frame:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(i == 1 and 44 or 32, i == 1 and 44 or 32) -- Current spell is larger
+        icon:SetSize(i == 1 and 42 or 30, i == 1 and 42 or 30)
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        
         if i == 1 then
             icon:SetPoint("LEFT", 12, 0)
         else
             icon:SetPoint("LEFT", self.icons[i-1], "RIGHT", 8, 0)
-            icon:SetAlpha(1 - (i * 0.15)) -- Fade distant spells
+            icon:SetAlpha(0.6)
         end
         self.icons[i] = icon
     end
 
-    -- State Label (Overarching)
     self.stateText = frame:CreateFontString(nil, "OVERLAY")
     self.stateText:SetFont(addonTable.MainFont, 12, "OUTLINE")
-    self.stateText:SetPoint("BOTTOM", frame, "TOP", 0, 2)
+    self.stateText:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 5, 2)
 
-    -- Mana Text
     self.manaText = frame:CreateFontString(nil, "OVERLAY")
-    self.manaText:SetFont(addonTable.MainFont, 10, "OUTLINE")
-    self.manaText:SetPoint("TOP", frame, "BOTTOM", 0, -2)
+    self.manaText:SetFont(addonTable.MainFont, 11, "OUTLINE")
+    self.manaText:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -5, 2)
     self.manaText:SetTextColor(0.4, 0.8, 1)
 end
 
@@ -47,29 +43,28 @@ function RotationTracker:UpdateDisplay()
     local sequence, state = addonTable.Rotation:GetSequence()
     local totalMana = addonTable.Rotation:GetTotalManaAvailable()
 
-    if state == "IDLE" then
+    if state == "IDLE" or #sequence == 0 then
         self.frame:Hide()
         return
     end
 
     self.frame:Show()
     
-    -- Update overarching colors
+    -- Overarching Colors
     if state == "BURN" then
-        self.frame:SetBackdropColor(0.3, 0, 0, 0.8)
-        self.frame:SetBackdropBorderColor(1, 0, 0, 1)
-        self.stateText:SetText("|cffff0000BURN PHASE|r")
+        self.frame:SetBackdropColor(0.4, 0, 0, 0.5)
+        self.frame:SetBackdropBorderColor(0, 1, 0, 1)
+        self.stateText:SetText("|cffff0000BURN|r")
     elseif state == "STARTUP" then
-        self.frame:SetBackdropColor(0.2, 0.2, 0, 0.8)
+        self.frame:SetBackdropColor(0.2, 0.2, 0, 0.5)
         self.frame:SetBackdropBorderColor(1, 1, 0, 1)
         self.stateText:SetText("|cffffd100OPENER|r")
     else
-        self.frame:SetBackdropColor(0, 0.1, 0, 0.8)
-        self.frame:SetBackdropBorderColor(0, 1, 0, 1)
+        self.frame:SetBackdropColor(0, 0, 0, 0.5)
+        self.frame:SetBackdropBorderColor(1, 0, 0, 1)
         self.stateText:SetText("|cff00ff00CONSERVE|r")
     end
 
-    -- Update Spell Icons
     for i = 1, 5 do
         if sequence[i] then
             self.icons[i]:SetTexture(sequence[i])
@@ -78,8 +73,5 @@ function RotationTracker:UpdateDisplay()
             self.icons[i]:Hide()
         end
     end
-
-    if totalMana then
-        self.manaText:SetText(string.format("Eff. Mana: %d", totalMana))
-    end
+    self.manaText:SetText(string.format("Eff: %d", totalMana))
 end
