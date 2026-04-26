@@ -7,12 +7,18 @@ local AB_MAX_STACK_COST = 634
 local MANA_EMERALD_REGEN = 2340
 local MANA_POT_REGEN = 1800
 local AB_SPELL_ID = 30451
-local FB_SPELL_ID = 116
+local FB_SPELL_ID = 27072 -- Updated to highest rank
 local MANA_EMERALD_ID = 22044
 local MANA_POT_ID = 22832
 local MANA_TIDE_ID = 16190
+local ARCANE_POWER_ID = 12042
 
--- HELPER: Safe Aura Scanner (Modern API)
+-- Textures
+local TEX_AB = "Interface\\Icons\\Spell_Arcane_Blast"
+local TEX_FB = "Interface\\Icons\\Spell_Frost_FrostBolt02"
+local TEX_AP = "Interface\\Icons\\Spell_Arcane_MindMastery"
+
+-- HELPER: Safe Aura Scanner
 local function GetAuraCount(unit, spellID, filter)
     for i = 1, 40 do
         local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
@@ -21,18 +27,18 @@ local function GetAuraCount(unit, spellID, filter)
             return aura.applications or 0
         end
     end
-    return nil
+    return 0
 end
 
 -- Helper: Get Arcane Blast Stacks
 local function GetABStacks()
-    return GetAuraCount("player", AB_SPELL_ID, "HARMFUL") or 0
+    return GetAuraCount("player", AB_SPELL_ID, "HARMFUL")
 end
 
--- Get Total Mana Per Second (Modern API)
+-- Get Total Mana Per Second
 function Rotation:GetManaPS()
     local _, castingRegen = GetManaRegen()
-    local hasTide = GetAuraCount("player", MANA_TIDE_ID, "HELPFUL")
+    local hasTide = GetAuraCount("player", MANA_TIDE_ID, "HELPFUL") > 0
     local tideRegen = hasTide and (UnitPowerMax("player", 0) * 0.02) or 0
     return (castingRegen or 0) + tideRegen
 end
@@ -66,9 +72,9 @@ function Rotation:GetManaState()
     local mps = self:GetManaPS()
     local projectedMana = totalMana + (mps * ttd)
 
-    -- Arcane Power Tax
+    -- Arcane Power Tax logic
     local apTax = 1.0
-    local cdInfo = C_Spell.GetSpellCooldown(12042)
+    local cdInfo = C_Spell.GetSpellCooldown(ARCANE_POWER_ID)
     local start = (type(cdInfo) == "table") and cdInfo.startTime or cdInfo
     local dur = (type(cdInfo) == "table") and cdInfo.duration or 180
     local cdLeft = (start and start > 0) and (start + dur - GetTime()) or 0
@@ -85,51 +91,53 @@ function Rotation:GetSequence()
     local state = self:GetManaState()
     local abStacks = GetABStacks()
     local sequence = {}
-    
-    local abTex = "Interface\\Icons\\Spell_Arcane_Blast"
-    local fbTex = "Interface\\Icons\\Spell_Frost_FrostBolt02"
-    local cdTex = "Interface\\Icons\\Spell_Arcane_MindMastery"
 
     if state == "IDLE" then return {}, "IDLE" end
 
-    if state == "STARTUP" then
-        for i = 1, (3 - abStacks) do table.insert(sequence, abTex) end
-        table.insert(sequence, cdTex)
-        while #sequence < 5 do table.insert(sequence, abTex) end
-    elseif state == "BURN" then
-        for i = 1, 5 do table.insert(sequence, abTex) end
-    elseif state == "CONSERVE" then
-        local fbInfo = C_Spell.GetSpellInfo(FB_SPELL_ID)
-        local abInfo = C_Spell.GetSpellInfo(AB_SPELL_ID)
-        local fbCast = (fbInfo and fbInfo.castTime or 2500) / 1000
-        local abCast = (abInfo and abInfo.castTime or 1500) / 1000
-        
-        -- Dynamic Filler Goal: 3 or 4 Frostbolts based on 8.2s window
-        local fillerGoal = ((3 * fbCast) + abCast < 8.2) and 4 or 3
-        
-        -- Simulation Logic
-        local simStacks = abStacks
-        local fbAdded = 0
-        -- If we already have 3 stacks, we are currently in the "Dropping" phase
-        local mode = (simStacks >= 3) and "DROPPING" or "BUILDING"
+    -- Simulation Variables
+    local simStacks = abStacks
+    local simFBCount = 0
+    local apSuggested = false
 
-        for i = 1, 5 do
-            if mode == "BUILDING" then
-                table.insert(sequence, abTex)
+    -- Calculate Filler Goal
+    local fbInfo = C_Spell.GetSpellInfo(FB_SPELL_ID)
+    local abInfo = C_Spell.GetSpellInfo(AB_SPELL_ID)
+    local fbCast = (fbInfo and fbInfo.castTime or 2500) / 1000
+    local abCast = (abInfo and abInfo.castTime or 1500) / 1000
+    local fillerGoal = ((3 * fbCast) + abCast < 8.2) and 4 or 3
+
+    for i = 1, 5 do
+        if state == "BURN" then
+            table.insert(sequence, TEX_AB)
+
+        elseif state == "STARTUP" then
+            if simStacks < 3 then
+                table.insert(sequence, TEX_AB)
                 simStacks = simStacks + 1
-                if simStacks >= 3 then
-                    mode = "DROPPING"
-                    fbAdded = 0
-                end
-            else -- mode == "DROPPING"
-                table.insert(sequence, fbTex)
-                fbAdded = fbAdded + 1
-                if fbAdded >= fillerGoal then
-                    mode = "BUILDING"
+            elseif not apSuggested then
+                table.insert(sequence, TEX_AP)
+                apSuggested = true
+            else
+                table.insert(sequence, TEX_AB)
+            end
+
+        elseif state == "CONSERVE" then
+            -- Check if we are in the "Dropping" phase
+            if simStacks >= 3 then
+                table.insert(sequence, TEX_FB)
+                simFBCount = simFBCount + 1
+                -- Reset stacks after filler goal reached
+                if simFBCount >= fillerGoal then
                     simStacks = 0
+                    simFBCount = 0
                 end
+            else
+                -- Building phase
+                table.insert(sequence, TEX_AB)
+                simStacks = simStacks + 1
             end
         end
     end
+
     return sequence, state
 end

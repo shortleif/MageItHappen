@@ -24,7 +24,7 @@ StatusGroup:SetPoint("TOP", _G["MIH_ShortCDRow"], "BOTTOM", 0, -4)
 -- Utility Icon Factory for Food/Drink
 local function CreateUtilityIcon(parent, texture)
     local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    b:SetSize(18, 18) -- Same height as castbar
+    b:SetSize(25, 25) -- Same height as castbar
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints()
     b.icon:SetTexture(texture)
@@ -71,7 +71,7 @@ StatusGroup.mpCont:SetPoint("TOP", StatusGroup.hpCont, "BOTTOM", 0, -SPACING)
 
 -- Setup Icons in the Castbar space
 StatusGroup.foodIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Spell_Misc_Food")
-StatusGroup.drinkIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Spell_Misc_Drink")
+StatusGroup.drinkIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Inv_drink_18")
 
 -- FIXED: Position food at the start (left) and drink at the end (right)
 if _G["MageCustomCastbar"] then

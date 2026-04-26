@@ -52,17 +52,17 @@ function RotationTracker:UpdateDisplay()
     
     -- Overarching Colors
     if state == "BURN" then
-        self.frame:SetBackdropColor(0.4, 0, 0, 0.5)
+        self.frame:SetBackdropColor(0, 0, 0, 0.5)
         self.frame:SetBackdropBorderColor(0, 1, 0, 1)
-        self.stateText:SetText("|cffff0000BURN|r")
+        self.stateText:SetText("|cff00ff00BURN|r")
     elseif state == "STARTUP" then
         self.frame:SetBackdropColor(0.2, 0.2, 0, 0.5)
         self.frame:SetBackdropBorderColor(1, 1, 0, 1)
         self.stateText:SetText("|cffffd100OPENER|r")
     else
-        self.frame:SetBackdropColor(0, 0, 0, 0.5)
+        self.frame:SetBackdropColor(0.4, 0, 0, 0.5)
         self.frame:SetBackdropBorderColor(1, 0, 0, 1)
-        self.stateText:SetText("|cff00ff00CONSERVE|r")
+        self.stateText:SetText("|cffff0000CONSERVE|r")
     end
 
     for i = 1, 5 do

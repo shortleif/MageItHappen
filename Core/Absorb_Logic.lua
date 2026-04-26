@@ -13,7 +13,7 @@ local absorbDb = {
     [13032] = {127, 677, 3.6, 52, 58, 52, 0.1}, -- Rank 3
     [13033] = {127, 817, 4.0, 58, 64, 58, 0.1}, -- Rank 4
     [27134] = {127, 925, 5.0, 66, 70, 66, 0.1}, -- Rank 5 (Learned Lvl 66, scales to 70)
-    [33045] = {127, 1075, 0.0, 70, 70, 70, 0.1}, -- Rank 6 (Learned Lvl 70)
+    [33405] = {127, 1075, 0.0, 70, 70, 70, 0.1}, -- Rank 6 (Learned Lvl 70)
 
     -- Mana Shield (School 1 = Physical)
     -- TBC Patch 2.4.0: SP coefficient increased to 50%
@@ -39,7 +39,7 @@ local absorbDb = {
     [8462]  = {16, 470, 0, 42, 42, 42, 0.1}, -- Rank 3
     [10177] = {16, 675, 0, 52, 52, 52, 0.1}, -- Rank 4
     [28609] = {16, 920, 0, 60, 60, 60, 0.1}, -- Rank 5
-    [27129] = {16, 1220, 0, 70, 70, 70, 0.1}, -- Rank 6 (TBC Learned Lvl 70)
+    [32796] = {16, 1125, 0, 70, 70, 70, 0.1}, -- Rank 6 (TBC Learned Lvl 70)
 }
 
 local function CalculateInitialAbsorb(spellId)
