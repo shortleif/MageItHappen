@@ -17,7 +17,7 @@ function RotationTracker:InitializeUI()
     self.icons = {}
     for i = 1, 5 do
         local icon = frame:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(i == 1 and 42 or 30, i == 1 and 42 or 30)
+        icon:SetSize(i == 1 and 48 or 30, i == 1 and 48 or 30)
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         if i == 1 then
             icon:SetPoint("LEFT", 12, 0)
@@ -29,49 +29,45 @@ function RotationTracker:InitializeUI()
     end
 
     self.stateText = frame:CreateFontString(nil, "OVERLAY")
-    self.stateText:SetFont(addonTable.MainFont, 12, "OUTLINE")
+    self.stateText:SetFont(addonTable.MainFont or "Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
     self.stateText:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 5, 2)
 
     self.manaText = frame:CreateFontString(nil, "OVERLAY")
-    self.manaText:SetFont(addonTable.MainFont, 11, "OUTLINE")
-    self.manaText:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -5, 2)
-    self.manaText:SetTextColor(0.4, 0.8, 1)
+    self.manaText:SetFont(addonTable.MainFont or "Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+    self.manaText:SetPoint("CENTER", frame, "CENTER", 25, 0)
+    self.manaText:SetTextColor(1, 1, 1)
 end
 
 function RotationTracker:UpdateDisplay()
-    if not addonTable.Rotation then return end
-    local sequence, state = addonTable.Rotation:GetSequence()
-    local totalMana = addonTable.Rotation:GetTotalManaAvailable()
-
-    if state == "IDLE" or #sequence == 0 then
+    if not addonTable.Rotation or not addonTable.Rotation.GetRotationData then return end
+    
+    local state, action, stacks, fbGoal = addonTable.Rotation:GetRotationData()
+    
+    if state == "IDLE" then
         self.frame:Hide()
         return
     end
-
     self.frame:Show()
-    
-    -- Overarching Colors
+
+    -- UI Colors based on State
     if state == "BURN" then
-        self.frame:SetBackdropColor(0, 0, 0, 0.5)
-        self.frame:SetBackdropBorderColor(0, 1, 0, 1)
-        self.stateText:SetText("|cff00ff00BURN|r")
-    elseif state == "STARTUP" then
-        self.frame:SetBackdropColor(0.2, 0.2, 0, 0.5)
-        self.frame:SetBackdropBorderColor(1, 1, 0, 1)
-        self.stateText:SetText("|cffffd100OPENER|r")
-    else
-        self.frame:SetBackdropColor(0.4, 0, 0, 0.5)
+        self.frame:SetBackdropColor(0.4, 0, 0, 0.8)
         self.frame:SetBackdropBorderColor(1, 0, 0, 1)
-        self.stateText:SetText("|cffff0000CONSERVE|r")
+        self.stateText:SetText("|cffff0000[ BURN ]|r")
+    else
+        self.frame:SetBackdropColor(0, 0, 0, 0.8)
+        self.frame:SetBackdropBorderColor(0, 1, 0, 1)
+        self.stateText:SetText("|cff00ff00[ CONSERVE ]|r")
     end
 
-    for i = 1, 5 do
-        if sequence[i] then
-            self.icons[i]:SetTexture(sequence[i])
-            self.icons[i]:Show()
-        else
-            self.icons[i]:Hide()
-        end
-    end
-    self.manaText:SetText(string.format("Eff: %d", totalMana))
+    self.manaText:SetText(action)
+
+    -- Icon Logic: Swaps to Frostbolt at 3+ stacks during Conserve
+    local tex = (stacks >= 3 and state == "CONSERVE") 
+                and "Interface\\Icons\\Spell_Frost_FrostBolt02" 
+                or "Interface\\Icons\\Spell_Arcane_Blast"
+    
+    self.icons[1]:SetTexture(tex)
+    self.icons[1]:Show()
+    for i = 2, 5 do self.icons[i]:Hide() end
 end

@@ -69,6 +69,12 @@ StatusGroup.hpCont:SetPoint("TOP", 0, 0)
 StatusGroup.mpCont, manaBar = CreateBar("MIH_ManaBar", 0, 0.4, 1, MANA_HEIGHT)
 StatusGroup.mpCont:SetPoint("TOP", StatusGroup.hpCont, "BOTTOM", 0, -SPACING)
 
+-- Haste Tracker Display
+StatusGroup.hasteText = manaBar:CreateFontString(nil, "OVERLAY")
+StatusGroup.hasteText:SetFont(addonTable.MainFont, 12, "OUTLINE")
+StatusGroup.hasteText:SetPoint("RIGHT", StatusGroup.mpCont, "RIGHT", -6, 80)
+StatusGroup.hasteText:Hide()
+
 -- Setup Icons in the Castbar space
 StatusGroup.foodIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Spell_Misc_Food")
 StatusGroup.drinkIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Inv_drink_18")
@@ -82,7 +88,12 @@ else
     StatusGroup.drinkIcon:SetPoint("BOTTOMRIGHT", StatusGroup.hpCont, "TOPRIGHT", 0, 18)
 end
 
-StatusGroup:SetScript("OnUpdate", function()
+StatusGroup:SetScript("OnUpdate", function(self, elapsed)
+    -- Optimized update frequency (every 0.1 seconds)
+    self.timer = (self.timer or 0) + elapsed
+    if self.timer < 0.1 then return end
+    self.timer = 0
+
     -- Health & Class Color Logic
     local hp, maxHp = UnitHealth("player"), UnitHealthMax("player")
     healthBar:SetMinMaxValues(0, maxHp > 0 and maxHp or 1); healthBar:SetValue(hp)
@@ -96,6 +107,23 @@ StatusGroup:SetScript("OnUpdate", function()
     local mp, maxMp = UnitPower("player"), UnitPowerMax("player")
     manaBar:SetMinMaxValues(0, maxMp > 0 and maxMp or 1); manaBar:SetValue(mp)
     manaBar.text:SetText(string.format("%d / %d", mp, maxMp - mp))
+
+    -- Update Haste Tracking
+    if UnitAffectingCombat("player") then
+        local currentHaste = UnitSpellHaste("player")
+        local r, g, b = 1, 1, 1 -- Default White
+
+        if currentHaste >= 50 then r, g, b = 0, 1, 1      -- High Haste/Lust (Cyan)
+        elseif currentHaste >= 25 then r, g, b = 0, 1, 0  -- Good Haste (Green)
+        elseif currentHaste >= 10 then r, g, b = 1, 1, 0  -- Moderate Haste (Yellow)
+        end
+
+        StatusGroup.hasteText:SetTextColor(r, g, b)
+        StatusGroup.hasteText:SetFormattedText("%.2f%%", currentHaste)
+        StatusGroup.hasteText:Show()
+    else
+        StatusGroup.hasteText:Hide()
+    end
 
     -- Monitor Eating/Drinking
     StatusGroup.foodIcon:Hide()

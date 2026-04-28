@@ -138,7 +138,7 @@ target:SetPoint("CENTER", 300, -185)
 local tot = CreateUnitFrame("targettarget", "MIH_ToTFrame", 130, 22)
 tot:SetPoint("LEFT", target, "RIGHT", 10, 0)
 
-local pet = CreateUnitFrame("pet", "MIH_PetFrame", 130, 22)
+local pet = CreateUnitFrame("pet", "MIH_PetFrame", 100, 22)
 if _G["MIH_StatusGroup"] then
     pet:SetPoint("RIGHT", _G["MIH_StatusGroup"], "LEFT", -15, 0)
 else
