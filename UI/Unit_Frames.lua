@@ -1,7 +1,9 @@
 local addonName, addonTable = ...
 local UnitFrames = CreateFrame("Frame")
 
+-- ==========================================
 -- 1. Hide Blizzard Frames
+-- ==========================================
 local function HideBlizzard()
     local frames = { PlayerFrame, TargetFrame, TargetFrameToT, FocusFrame, PetFrame }
     for _, f in ipairs(frames) do
@@ -10,7 +12,9 @@ local function HideBlizzard()
 end
 HideBlizzard()
 
+-- ==========================================
 -- 2. Aura (Buff) Icon Factory
+-- ==========================================
 local function CreateAuraButton(parent, unit, index)
     local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
     b:SetSize(32, 32) 
@@ -32,10 +36,8 @@ local function CreateAuraButton(parent, unit, index)
     b.count:SetFont(addonTable.MainFont, 12, "OUTLINE")
     b.count:SetPoint("BOTTOMRIGHT", 2, -2)
 
-    -- Tooltip Logic: Set the tooltip on hover
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-        -- "HELPFUL" filters for Buffs. Use "HARMFUL" if you ever add debuffs.
         GameTooltip:SetUnitAura(unit, index, "HELPFUL")
         GameTooltip:Show()
     end)
@@ -47,7 +49,9 @@ local function CreateAuraButton(parent, unit, index)
     return b
 end
 
+-- ==========================================
 -- 3. Frame Creation Template
+-- ==========================================
 local function CreateUnitFrame(unit, name, width, height)
     local f = CreateFrame("Button", name, UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
     f:SetSize(width, height)
@@ -74,7 +78,6 @@ local function CreateUnitFrame(unit, name, width, height)
     f.mp:SetStatusBarColor(0.2, 0.4, 1)
     f.mp:SetFrameLevel(15)
     
-    -- RAID TARGET MARKER OVERLAY
     f.MarkerOverlay = CreateFrame("Frame", nil, f)
     f.MarkerOverlay:SetAllPoints(f)
     f.MarkerOverlay:SetFrameLevel(100)
@@ -99,6 +102,10 @@ local function CreateUnitFrame(unit, name, width, height)
     f.valText:SetPoint("RIGHT", -6, 0)
 
     if unit == "target" then
+        f.threatText = f.hp:CreateFontString(nil, "OVERLAY")
+        f.threatText:SetFont(addonTable.MainFont, mainFontSize - 6, "OUTLINE")
+        f.threatText:SetPoint("TOP", f.hp, "TOP", 0, 2)
+
         f.buffs = {}
         local auraParent = CreateFrame("Frame", nil, f)
         auraParent:SetSize(width, 1)
@@ -111,6 +118,10 @@ local function CreateUnitFrame(unit, name, width, height)
             b:SetPoint("TOPLEFT", auraParent, "TOPLEFT", col * (32 + 2), -row * (32 + 2))
             f.buffs[i] = b
         end
+    elseif unit == "pet" then
+        f.timerText = f.hp:CreateFontString(nil, "OVERLAY")
+        f.timerText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
+        f.timerText:SetPoint("BOTTOM", f, "BOTTOM", 0, -15)
     end
 
     if unit ~= "player" and unit ~= "targettarget" then
@@ -131,7 +142,9 @@ local function CreateUnitFrame(unit, name, width, height)
     return f
 end
 
+-- ==========================================
 -- 4. Positioning
+-- ==========================================
 local target = CreateUnitFrame("target", "MIH_TargetFrame", 270, 54)
 target:SetPoint("CENTER", 300, -185)
 
@@ -148,24 +161,48 @@ end
 local focus = CreateUnitFrame("focus", "MIH_FocusFrame", 200, 28)
 focus:SetPoint("CENTER", 570, 80)
 
--- 5. Update Logic
+-- ==========================================
+-- 5. Global State & Event Listener (NEW LOGIC)
+-- ==========================================
+local petExpirationTime = 0
+local PET_DURATION = 45 -- Change this if you use a glyph that extends duration
+
+local SpellTracker = CreateFrame("Frame")
+SpellTracker:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+SpellTracker:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
+    -- Modern API check for the spell name
+    local spellInfo = C_Spell.GetSpellInfo(spellID)
+    if spellInfo and spellInfo.name == "Summon Water Elemental" then
+        -- The spell was cast successfully! Set the expiration timestamp.
+        petExpirationTime = GetTime() + PET_DURATION
+    end
+end)
+
+-- ==========================================
+-- 6. Update Logic
+-- ==========================================
 local function UpdateAuras(f, unit)
     if not f.buffs then return end
     local now = GetTime()
+    
     for i = 1, 40 do
-        local name, icon, count, _, duration, expirationTime = UnitAura(unit, i, "HELPFUL")
         local b = f.buffs[i]
-        if name then
-            b.icon:SetTexture(icon)
-            b.count:SetText(count > 1 and tostring(count) or "")
-            if duration and duration > 0 then
-                local remaining = expirationTime - now
+        local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+        
+        if aura then
+            b.icon:SetTexture(aura.icon)
+            b.count:SetText(aura.applications > 1 and tostring(aura.applications) or "")
+            
+            if aura.duration and aura.duration > 0 then
+                local remaining = aura.expirationTime - now
                 b.durationText:SetText(remaining > 60 and math.floor(remaining/60).."m" or math.floor(remaining))
             else 
                 b.durationText:SetText("")
             end
             b:Show()
-        else b:Hide() end
+        else 
+            b:Hide() 
+        end
     end
 end
 
@@ -196,7 +233,38 @@ local function UpdateFrame(f)
         f.mp:SetMinMaxValues(0, mpMax > 0 and mpMax or 1); f.mp:SetValue(mp)
     end
 
-    -- RAID MARKER UPDATE
+    if unit == "target" and f.threatText then
+        local _, status, threatpct = UnitDetailedThreatSituation("player", "target")
+        if threatpct and threatpct > 0 then
+            f.threatText:SetFormattedText("%d%%", threatpct)
+            if status and status >= 1 then 
+                f.threatText:SetTextColor(1, 1, 1)
+            else 
+                f.threatText:SetTextColor(0, 1, 0)
+            end                          
+            f.threatText:Show()
+        else
+            f.threatText:Hide()
+        end
+    end
+
+    -- ==========================================
+    -- FIXED PET TIMER LOGIC
+    -- ==========================================
+    if unit == "pet" and f.timerText then
+        -- Subtract the current time from our manual timestamp
+        local remaining = petExpirationTime - GetTime()
+        
+        -- Make sure the pet is actually alive and exists, and timer is > 0
+        if remaining > 0 and not UnitIsDead("pet") then
+            f.timerText:SetFormattedText("%.1fs", remaining)
+            f.timerText:SetTextColor(0, 1, 1) -- Cyan color
+            f.timerText:Show()
+        else
+            f.timerText:Hide()
+        end
+    end
+
     local mark = GetRaidTargetIndex(unit)
     if mark then
         local left = (mark - 1) % 4 * 0.25
@@ -217,10 +285,15 @@ local function UpdateFrame(f)
         if spell then
             f.cb:SetMinMaxValues(start, endTime); f.cb:SetValue(GetTime()*1000)
             f.cb.text:SetText(spell); f.cb:Show()
-        else f.cb:Hide() end
+        else 
+            f.cb:Hide() 
+        end
     end
 end
 
+-- ==========================================
+-- 7. Main Loop
+-- ==========================================
 UnitFrames:SetScript("OnUpdate", function(self, elapsed)
     self.timer = (self.timer or 0) + elapsed
     if self.timer < 0.03 then return end 

@@ -2,7 +2,9 @@ local addonName, addonTable = ...
 local Procs = CreateFrame("Frame", "MIH_ProcGroup", UIParent)
 
 -- 1. Configuration & Position
-local WIDTH, HEIGHT = 250, 32 
+local WIDTH, HEIGHT = 250, 68 -- Increased height to accommodate two icons + spacing
+local ICON_SIZE = 32
+local SPACING = 4
 Procs:SetSize(WIDTH, HEIGHT)
 
 -- Floating 400px above the castbar
@@ -19,9 +21,9 @@ local FROZEN_DEBUFFS = {
 }
 
 -- 2. Icon Factory
-local function CreateProcIcon(texture)
+local function CreateProcIcon(texture, isHarmful)
     local b = CreateFrame("Button", nil, Procs, "BackdropTemplate")
-    b:SetSize(32, 32)
+    b:SetSize(ICON_SIZE, ICON_SIZE)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints()
     b.icon:SetTexture(texture)
@@ -37,7 +39,10 @@ local function CreateProcIcon(texture)
     b:SetScript("OnEnter", function(self)
         if self.auraIndex then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetUnitAura("target", self.auraIndex, "HARMFUL")
+            -- Use HARMFUL for target debuffs, HELPFL for player buffs
+            local filter = isHarmful and "HARMFUL" or "HELPFUL"
+            local unit = isHarmful and "target" or "player"
+            GameTooltip:SetUnitAura(unit, self.auraIndex, filter)
             GameTooltip:Show()
         end
     end)
@@ -46,9 +51,15 @@ local function CreateProcIcon(texture)
     return b
 end
 
--- 3. Initialize Ice Lance Indicator
-local iceLance = CreateProcIcon("Interface\\Icons\\Spell_Frost_FrostBlast")
-iceLance:SetPoint("CENTER", Procs, "CENTER", 0, 0)
+-- 3. Initialize Indicators
+-- Ice Lance (Target Frozen)
+local iceLance = CreateProcIcon("Interface\\Icons\\Spell_Frost_FrostBlast", true)
+iceLance:SetPoint("TOP", Procs, "TOP", 0, 0)
+
+-- Clearcasting (Player Proc)
+-- Icon texture: Spell_Arcane_ManaTap (Commonly used for Clearcasting)
+local clearcasting = CreateProcIcon("Interface\\Icons\\Spell_Arcane_ManaTap", false)
+clearcasting:SetPoint("TOP", iceLance, "BOTTOM", 0, -SPACING)
 
 -- 4. Update Loop
 Procs:SetScript("OnUpdate", function(self, elapsed)
@@ -56,6 +67,9 @@ Procs:SetScript("OnUpdate", function(self, elapsed)
     if self.timer < 0.1 then return end
     self.timer = 0
 
+    ---------------------------
+    -- LOGIC: Ice Lance / Frozen
+    ---------------------------
     local isFrost = IsSpellKnownOrOverridesKnown(11426) or IsPlayerSpell(11426)
     local foundFrozen = false
 
@@ -74,14 +88,38 @@ Procs:SetScript("OnUpdate", function(self, elapsed)
     if foundFrozen then
         if not iceLance:IsShown() then
             iceLance:Show()
-            -- AUTHENTIC BLIZZARD GLOW: The animated shimmering effect
-             ActionButtonSpellAlertManager:ShowAlert(iceLance)
+            ActionButtonSpellAlertManager:ShowAlert(iceLance)
         end
     else
         if iceLance:IsShown() then
             iceLance:Hide()
-            -- HIDE GLOW: Stop the animation
             ActionButtonSpellAlertManager:HideAlert(iceLance)
+        end
+    end
+
+    ---------------------------
+    -- LOGIC: Clearcasting
+    ---------------------------
+    local foundClearcasting = false
+    for i = 1, 40 do
+        local name = UnitAura("player", i, "HELPFUL")
+        if not name then break end
+        if name == "Clearcasting" then
+            clearcasting.auraIndex = i
+            foundClearcasting = true
+            break
+        end
+    end
+
+    if foundClearcasting then
+        if not clearcasting:IsShown() then
+            clearcasting:Show()
+            ActionButtonSpellAlertManager:ShowAlert(clearcasting)
+        end
+    else
+        if clearcasting:IsShown() then
+            clearcasting:Hide()
+            ActionButtonSpellAlertManager:HideAlert(clearcasting)
         end
     end
 end)

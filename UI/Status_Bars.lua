@@ -11,6 +11,14 @@ StatusGroup:SetAttribute("*type2", "togglemenu")
 -- HP_HEIGHT 12 for the requested "player frame" feel
 local HP_HEIGHT, MANA_HEIGHT, SPACING = 12, 16, 2
 local dynamicWidth = 250
+local healthBar, manaBar
+
+local function FormatValue(val)
+    if not val then return "0" end
+    if val >= 1000000 then return string.format("%.1fm", val / 1000000)
+    elseif val >= 1000 then return string.format("%.1fk", val / 1000)
+    else return tostring(math.floor(val)) end
+end
 
 function addonTable.UpdateStatusBarsWidth(width)
     StatusGroup:SetWidth(width)
@@ -79,7 +87,6 @@ StatusGroup.hasteText:Hide()
 StatusGroup.foodIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Spell_Misc_Food")
 StatusGroup.drinkIcon = CreateUtilityIcon(StatusGroup, "Interface\\Icons\\Inv_drink_18")
 
--- FIXED: Position food at the start (left) and drink at the end (right)
 if _G["MageCustomCastbar"] then
     StatusGroup.foodIcon:SetPoint("LEFT", _G["MageCustomCastbar"], "LEFT", 0, 0)
     StatusGroup.drinkIcon:SetPoint("RIGHT", _G["MageCustomCastbar"], "RIGHT", 0, 0)
@@ -87,6 +94,28 @@ else
     StatusGroup.foodIcon:SetPoint("BOTTOMLEFT", StatusGroup.hpCont, "TOPLEFT", 0, 18)
     StatusGroup.drinkIcon:SetPoint("BOTTOMRIGHT", StatusGroup.hpCont, "TOPRIGHT", 0, 18)
 end
+
+-- ==========================================
+-- NEW: Frost Elemental Tracker Frame & Text
+-- ==========================================
+StatusGroup.eleIcon = CreateFrame("Frame", nil, StatusGroup, "BackdropTemplate")
+StatusGroup.eleIcon:SetSize(25, 25)
+-- Position it to the right of the mana bar (adjust X and Y to your liking!)
+StatusGroup.eleIcon:SetPoint("LEFT", StatusGroup.mpCont, "RIGHT", 10, 0) 
+StatusGroup.eleIcon:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
+StatusGroup.eleIcon:SetBackdropBorderColor(0, 0, 0, 1)
+
+StatusGroup.eleIcon.texture = StatusGroup.eleIcon:CreateTexture(nil, "ARTWORK")
+StatusGroup.eleIcon.texture:SetAllPoints()
+StatusGroup.eleIcon.texture:SetTexture("Interface\\Icons\\Spell_Frost_SummonWaterElemental")
+StatusGroup.eleIcon.texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+-- THE FIX: Here is the text that sits below the frame
+StatusGroup.eleIcon.text = StatusGroup.eleIcon:CreateFontString(nil, "OVERLAY")
+StatusGroup.eleIcon.text:SetFont(addonTable.MainFont or "Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+StatusGroup.eleIcon.text:SetPoint("TOP", StatusGroup.eleIcon, "BOTTOM", 0, -4) -- Pushed 4 pixels below the icon
+StatusGroup.eleIcon:Hide()
+
 
 StatusGroup:SetScript("OnUpdate", function(self, elapsed)
     -- Optimized update frequency (every 0.1 seconds)
@@ -101,12 +130,17 @@ StatusGroup:SetScript("OnUpdate", function(self, elapsed)
     local _, class = UnitClass("player")
     local color = class and RAID_CLASS_COLORS[class]
     if color then healthBar:SetStatusBarColor(color.r, color.g, color.b) end
-    healthBar.text:SetText("")
+
+    if UnitAffectingCombat("player") then
+        healthBar.text:SetText(FormatValue(hp))
+    else
+        healthBar.text:SetText(FormatValue(maxHp))
+    end
 
     -- Mana Logic
     local mp, maxMp = UnitPower("player"), UnitPowerMax("player")
     manaBar:SetMinMaxValues(0, maxMp > 0 and maxMp or 1); manaBar:SetValue(mp)
-    manaBar.text:SetText(string.format("%d / %d", mp, maxMp - mp))
+    manaBar.text:SetText(string.format("%s / %s", FormatValue(mp), FormatValue(maxMp)))
 
     -- Update Haste Tracking
     if UnitAffectingCombat("player") then
@@ -129,15 +163,43 @@ StatusGroup:SetScript("OnUpdate", function(self, elapsed)
     StatusGroup.foodIcon:Hide()
     StatusGroup.drinkIcon:Hide()
     for i = 1, 40 do
-        local name = UnitAura("player", i, "HELPFUL")
-        if not name then break end
-        if name == "Food" then
+        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+        if not aura then break end
+        
+        if aura.name == "Food" then
             StatusGroup.foodIcon.auraIndex = i
             StatusGroup.foodIcon:Show()
-        elseif name == "Drink" then
+        elseif aura.name == "Drink" then
             StatusGroup.drinkIcon.auraIndex = i
             StatusGroup.drinkIcon:Show()
         end
+    end
+
+    -- ==========================================
+    -- NEW: Frost Elemental Timer Update Logic
+    -- ==========================================
+    -- In Classic/WotLK, the Water Elemental is tracked as a guardian in Totem Slot 1 or 2.
+    local haveTotem, totemName, startTime, duration = GetTotemInfo(1)
+    
+    -- If it's not in slot 1, check slot 2 (Sometimes shifts based on other guardians)
+    if not haveTotem or totemName == "" then
+        haveTotem, totemName, startTime, duration = GetTotemInfo(2)
+    end
+
+    if haveTotem and totemName and totemName ~= "" and duration > 0 then
+        StatusGroup.eleIcon:Show()
+        
+        -- Calculate how much time is remaining
+        local timeLeft = (startTime + duration) - GetTime()
+        
+        if timeLeft > 0 then
+            -- Set the text string to show the remaining seconds
+            StatusGroup.eleIcon.text:SetFormattedText("%.0f", timeLeft)
+        else
+            StatusGroup.eleIcon:Hide()
+        end
+    else
+        StatusGroup.eleIcon:Hide()
     end
 end)
 
