@@ -3,7 +3,7 @@ local Tracker = CreateFrame("Frame", "MageItHappen_Tracker", MIH_StatusGroup, "B
 
 -- Frame Setup
 Tracker:SetSize(120, 120)
-Tracker:SetPoint("RIGHT", _G["MIH_StatusGroup"], "LEFT", -15, 10)
+Tracker:SetPoint("RIGHT", _G["MIH_StatusGroup"], "LEFT", -40, 10)
 Tracker:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -19,7 +19,7 @@ Tracker.Icon:SetPoint("TOP", 0, -15)
 -- Text Label
 Tracker.Text = Tracker:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 Tracker.Text:SetPoint("BOTTOM", 0, 15)
--- Use the custom font from your Init.lua if it exists
+
 if addonTable.MainFont then
     Tracker.Text:SetFont(addonTable.MainFont, 14, "OUTLINE")
 end
@@ -41,7 +41,7 @@ local function OnUpdate(self, elapsed)
     -- Update Text
     self.Text:SetText(text)
     
-    -- Update Icon dynamically using modern C_Spell API
+    -- Update Icon dynamically
     local spellInfo = C_Spell.GetSpellInfo(spellName)
     if spellInfo and spellInfo.iconID then
         self.Icon:SetTexture(spellInfo.iconID)
@@ -50,37 +50,56 @@ end
 
 Tracker:SetScript("OnUpdate", OnUpdate)
 
--- Event Handling to show/hide the frame
-Tracker:RegisterEvent("PLAYER_REGEN_DISABLED")
-Tracker:RegisterEvent("PLAYER_REGEN_ENABLED")
-Tracker:RegisterEvent("PLAYER_TARGET_CHANGED")
-
-Tracker:SetScript("OnEvent", function(self, event)
-    -- 1. Check if we have a valid, living enemy target
+-- Function to handle complex visibility checks per protocol
+local function RefreshVisibility(self, event)
+    -- 1. Gather Target State
     local hasTarget = UnitExists("target")
-    local canAttack = hasTarget and UnitCanAttack("player", "target")
-    local isAlive = hasTarget and not UnitIsDead("target")
+    local canAttack = false
+    local isAlive = false
     
-    -- 2. Determine combat state, accounting for API delays
-    local inCombat = InCombatLockdown() or UnitAffectingCombat("player")
-    
-    if event == "PLAYER_REGEN_DISABLED" then
-        inCombat = true -- Force true if we just entered combat
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        inCombat = false -- Force false if we just left combat
+    if hasTarget then
+        canAttack = UnitCanAttack("player", "target")
+        isAlive = not UnitIsDead("target")
     end
     
-    -- 3. Show or Hide
-    if inCombat and canAttack and isAlive then
+    -- 2. Gather Combat/Config State
+    local inCombat = InCombatLockdown() or UnitAffectingCombat("player")
+    if event == "PLAYER_REGEN_DISABLED" then inCombat = true end
+    if event == "PLAYER_REGEN_ENABLED" then inCombat = false end
+
+    -- 3. Check Logic Engine for Config-based visibility (Spec/Encounter)[cite: 1]
+    local logicAllows = false
+    if addonTable.Rotation and addonTable.Rotation.ShouldShow then
+        logicAllows = addonTable.Rotation.ShouldShow()
+    end
+
+    -- 4. Final Boolean Logic
+    local shouldBeActive = false
+    if logicAllows and inCombat and canAttack and isAlive then
+        shouldBeActive = true
+    end
+
+    -- 5. Apply State
+    if shouldBeActive then
         self.isActive = true
         self:Show()
     else
         self.isActive = false
         self:Hide()
-        
-        -- Optional: Reset color so it doesn't flash the previous state on next target
         self:SetBackdropColor(0, 0, 0, 0.8)
     end
+end
+
+-- Event Handling
+Tracker:RegisterEvent("PLAYER_REGEN_DISABLED")
+Tracker:RegisterEvent("PLAYER_REGEN_ENABLED")
+Tracker:RegisterEvent("PLAYER_TARGET_CHANGED")
+Tracker:RegisterEvent("PLAYER_TALENT_UPDATE") -- Added for spec swaps[cite: 1]
+Tracker:RegisterEvent("ENCOUNTER_START")      -- Added for encounter toggle[cite: 1]
+Tracker:RegisterEvent("ENCOUNTER_END")
+
+Tracker:SetScript("OnEvent", function(self, event)
+    RefreshVisibility(self, event)
 end)
 
 addonTable.RotationTracker = Tracker

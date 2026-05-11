@@ -83,3 +83,5 @@ ABTracker:SetScript("OnUpdate", function(self)
 end)
 
 ABTracker:Hide()
+
+addonTable.ABTracker = ABTracker

@@ -26,6 +26,7 @@ UI/Procs.lua
 UI/Arcane_Blast_Tracker.lua
 UI/Consumable_Tracker.lua
 UI/Rotation_Tracker.lua
+UI/Intellect_Checker.lua
 
 # Entry Point
 Config.lua

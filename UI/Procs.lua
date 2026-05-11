@@ -57,9 +57,11 @@ local iceLance = CreateProcIcon("Interface\\Icons\\Spell_Frost_FrostBlast", true
 iceLance:SetPoint("TOP", Procs, "TOP", 0, 0)
 
 -- Clearcasting (Player Proc)
--- Icon texture: Spell_Arcane_ManaTap (Commonly used for Clearcasting)
-local clearcasting = CreateProcIcon("Interface\\Icons\\Spell_Arcane_ManaTap", false)
-clearcasting:SetPoint("TOP", iceLance, "BOTTOM", 0, -SPACING)
+local clearcastingText = Procs:CreateFontString(nil, "OVERLAY")
+clearcastingText:SetFont(addonTable.MainFont or "Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
+clearcastingText:SetPoint("TOP", iceLance, "BOTTOM", 0, -SPACING)
+clearcastingText:SetText("CLEARCASTING")
+clearcastingText:Hide()
 
 -- 4. Update Loop
 Procs:SetScript("OnUpdate", function(self, elapsed)
@@ -105,21 +107,18 @@ Procs:SetScript("OnUpdate", function(self, elapsed)
         local name = UnitAura("player", i, "HELPFUL")
         if not name then break end
         if name == "Clearcasting" then
-            clearcasting.auraIndex = i
             foundClearcasting = true
             break
         end
     end
 
     if foundClearcasting then
-        if not clearcasting:IsShown() then
-            clearcasting:Show()
-            ActionButtonSpellAlertManager:ShowAlert(clearcasting)
+        if not clearcastingText:IsShown() then
+            clearcastingText:Show()
         end
     else
-        if clearcasting:IsShown() then
-            clearcasting:Hide()
-            ActionButtonSpellAlertManager:HideAlert(clearcasting)
+        if clearcastingText:IsShown() then
+            clearcastingText:Hide()
         end
     end
 end)

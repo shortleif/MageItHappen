@@ -103,8 +103,8 @@ local function CreateUnitFrame(unit, name, width, height)
 
     if unit == "target" then
         f.threatText = f.hp:CreateFontString(nil, "OVERLAY")
-        f.threatText:SetFont(addonTable.MainFont, mainFontSize - 6, "OUTLINE")
-        f.threatText:SetPoint("TOP", f.hp, "TOP", 0, 2)
+        f.threatText:SetFont(addonTable.MainFont, mainFontSize - 5, "OUTLINE")
+        f.threatText:SetPoint("TOP", f.hp, "TOPRIGHT", -5, 2)
 
         f.buffs = {}
         local auraParent = CreateFrame("Frame", nil, f)
@@ -121,7 +121,7 @@ local function CreateUnitFrame(unit, name, width, height)
     elseif unit == "pet" then
         f.timerText = f.hp:CreateFontString(nil, "OVERLAY")
         f.timerText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
-        f.timerText:SetPoint("BOTTOM", f, "BOTTOM", 0, -15)
+        f.timerText:SetPoint("BOTTOM", f, "BOTTOM", 0, -80)
     end
 
     if unit ~= "player" and unit ~= "targettarget" then
