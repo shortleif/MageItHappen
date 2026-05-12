@@ -3,37 +3,31 @@ local Rotation = {}
 addonTable.Rotation = Rotation
 addonTable.DebugInfo = {}
 
-
-
 -- Global flag to track if we are in the initial phase of combat for mana calculations
 local isInInitialCombatPhase = true
 
 -- Function to reset the initial combat phase flag, to be called when combat starts
-local function ResetInitialCombatPhase()
+function Rotation.ResetInitialCombatPhase()
     isInInitialCombatPhase = true
 end
 
 -- Helper to update the initial combat phase flag based on TTD
 local function UpdateCombatPhase(ttd)
-    -- If TTD is very high (e.g., > 990) or we are still in the initial phase and combat just started, stay in initial phase.
-    -- Transition out of initial phase if TTD drops significantly or if combat just ended and restarted.
     if ttd > 990 then
         isInInitialCombatPhase = true
-    elseif isInInitialCombatPhase and ttd < 990 then
-        -- Transition out of initial phase if TTD drops below a threshold
+    elseif isInInitialCombatPhase and ttd > 0 and ttd < 990 then
         isInInitialCombatPhase = false
     end
-    -- If combat just ended and restarted, isInInitialCombatPhase should be reset to true by ResetInitialCombatPhase()
 end
 
 -- VT Mana Return Rolling Average
 local vtManaReturnHistory = {}
 
-local function AddVtManaReturnData(manaReturned)
+-- Exposed so a combat log tracker can push mana return data
+function Rotation.AddVtManaReturnData(manaReturned)
     local currentTime = GetTime()
     table.insert(vtManaReturnHistory, { timestamp = currentTime, mana = manaReturned })
     
-    -- Prune old data outside the rolling window
     local vtRollingAverageWindow = (MageItHappenDB and MageItHappenDB.vtRollingAverageWindow) or 30
     local cutoffTime = currentTime - vtRollingAverageWindow
     local i = 1
@@ -61,7 +55,7 @@ end
 local MANA_EMERALD_REGEN = 2340
 local MANA_POT_REGEN = 1800
 local AB_SPELL_ID = 30451
-local AB_DEBUFF_ID = 36032 -- Correct TBC Debuff ID
+local AB_DEBUFF_ID = 36032
 local FB_SPELL_ID = 27072 
 local MANA_EMERALD_ID = 22044
 local MANA_POT_ID = 22832
@@ -71,9 +65,38 @@ local AB_DEBUFF_DURATION = 8.2
 local EVOCATION_SPELL_ID = 12051
 local SHADOWFORM_ID = 15473
 
+-- NEW CONSTANTS: Tirisfal Set and Serpent-Coil Braid
+local SERPENT_COIL_BRAID_ID = 30720
+-- 30206 (Head), 30207 (Shoulders), 30196 (Chest), 30207 (Legs), 30205 (Hands)
+local TIRISFAL_PIECES = {30206, 30210, 30196, 30207, 30205}
+
+-- Helper: Check for 2p Tirisfal set
+local function HasTirisfal2P()
+    local count = 0
+    for _, itemID in ipairs(TIRISFAL_PIECES) do
+        if IsEquippedItem(itemID) then
+            count = count + 1
+            if count >= 2 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- Helper: Check if a Shadow Priest is in the party
+local shadowPriestCache = false
+local lastShadowPriestCheck = 0
+
 local function HasShadowPriest()
-    -- VT is party-wide in TBC. Check self and party members.
+    local now = GetTime()
+    -- Throttle checking to once every 2 seconds to save CPU
+    if now - lastShadowPriestCheck < 2.0 then
+        return shadowPriestCache
+    end
+    lastShadowPriestCheck = now
+    shadowPriestCache = false
+
     local units = {"player", "party1", "party2", "party3", "party4"}
     for _, unit in ipairs(units) do
         if UnitExists(unit) then
@@ -81,12 +104,31 @@ local function HasShadowPriest()
                 local name, _, _, _, _, _, _, _, _, spellId = UnitAura(unit, i, "HELPFUL")
                 if not name then break end
                 if spellId == SHADOWFORM_ID or name == "Shadowform" then
-                    return true
+                    shadowPriestCache = true
+                    return shadowPriestCache
                 end
             end
         end
     end
-    return false
+    return shadowPriestCache
+end
+
+-- Helper: Get Arcane Blast Debuff Info to fix the missing function error
+local function GetABDebuffInfo()
+    local stacks, timeLeft = 0, 0
+    for i = 1, 40 do
+        local name, _, count, _, _, expirationTime, _, _, _, spellId = UnitAura("player", i, "HARMFUL")
+        if not name then break end
+        -- TBC ID 36032
+        if spellId == AB_DEBUFF_ID or name == "Arcane Blast" then
+            stacks = count or 0
+            if expirationTime and expirationTime > 0 then
+                timeLeft = expirationTime - GetTime()
+            end
+            break
+        end
+    end
+    return stacks, timeLeft
 end
 
 -- Helper: Get current Cast Time in seconds
@@ -101,10 +143,19 @@ end
 -- Helper: Get Arcane Blast Mana Cost
 local function GetABManaCost()
     local costs = C_Spell.GetSpellPowerCost("Arcane Blast")
+    local cost = 200 
     if costs and costs[1] then
-        return costs[1].cost
+        cost = costs[1].cost
     end
-    return 200 
+    
+    -- NEW: Add 39 flat mana if 2p Tirisfal is equipped
+    local hasT5 = HasTirisfal2P()
+    addonTable.DebugInfo.hasT5 = hasT5
+    if hasT5 then
+        cost = cost + 39
+    end
+    
+    return cost
 end
 
 -- Helper: Calculate Total Available Mana
@@ -116,6 +167,14 @@ local function GetTotalAvailableMana()
     local potionCount = GetItemCount(MANA_POT_ID)
     
     local emeraldMana = (emeraldCount > 0) and MANA_EMERALD_REGEN or 0
+    
+    -- NEW: Apply Serpent-Coil Braid 25% bonus
+    local hasSerpent = IsEquippedItem(SERPENT_COIL_BRAID_ID)
+    addonTable.DebugInfo.hasSerpent = hasSerpent
+    if hasSerpent then
+        emeraldMana = emeraldMana * 1.25
+    end
+    
     local potionMana = (potionCount > 0) and MANA_POT_REGEN or 0
     
     local total = currentMana + emeraldMana + potionMana
@@ -132,7 +191,6 @@ local function GetTotalAvailableMana()
     local evoMana = 0
     if isEvoReady then
         evoMana = maxMana * 0.60
-        -- Include in total if the fight is long enough to channel, or if out of combat (ttd == 0)
         if ttd > 8 or ttd == 0 then
             total = total + evoMana
         end
@@ -144,29 +202,6 @@ local function GetTotalAvailableMana()
     addonTable.DebugInfo.evoMana = evoMana
     
     return total
-end
-
--- Helper: Scan for Arcane Blast debuff using provided TBC Logic
-local function GetABDebuffInfo()
-    local currentTime = GetTime()
-    for i = 1, 40 do
-        local n, _, c, _, _, e, _, _, _, spellId = UnitAura("player", i, "HARMFUL")
-        if not n then break end
-        
-        if spellId == AB_DEBUFF_ID then
-            -- Fallback count to 1 if the API returns 0 for the first stack
-            local count = c
-            if count == 0 then count = 1 end
-            
-            local timeLeft = 0
-            if e and e > 0 then
-                timeLeft = e - currentTime
-            end
-            
-            return count, timeLeft
-        end
-    end
-    return 0, 0
 end
 
 -- Visibility Logic for UI
@@ -260,12 +295,34 @@ function Rotation.GetState()
         if timeLeft <= abCastTime then
             return "HANDOFF", "Arcane Blast", "HANDOFF AB", 0.5, 0, 0.8 
         else
-            -- We must fill time with Frostbolt
-            return "FILL", "Frostbolt", string.format("FB FILL (%.1fs)", timeLeft), 0, 0.3, 0 
+            -- We have time to kill before the handoff window.
+            local fbCastTime = GetSpellCastTime("Frostbolt")
+            
+            -- Use Scorch cast time as a proxy for our hasted GCD length
+            local fastFillerTime = GetSpellCastTime("Scorch")
+            if fastFillerTime >= 2.0 then fastFillerTime = 1.5 end
+            
+            -- Safety buffer so we don't drop the debuff due to latency
+            local buffer = (MageItHappenDB and MageItHappenDB.handoffBuffer) or 0.2
+            
+            if timeLeft > (fbCastTime + buffer) then
+                -- We have enough time to safely fit a Frostbolt
+                return "FILL", "Frostbolt", string.format("FB FILL (%.1fs)", timeLeft), 0, 0.3, 0 
+            elseif timeLeft > (fastFillerTime + buffer) then
+                -- Dynamic Fast Fill: Fire Blast if available, otherwise Scorch
+                local fastFillSpell = "Fire Blast"
+                local fbStart, fbDuration = GetSpellCooldown("Fire Blast")
+                
+                if (fbStart and fbStart > 0 and fbDuration > 1.5) or (UnitExists("target") and IsSpellInRange("Fire Blast", "target") == 0) then
+                    fastFillSpell = "Scorch"
+                end
+                
+                return "FAST FILL", fastFillSpell, string.format("FAST FILL (%.1fs)", timeLeft), 1, 0.5, 0
+            else
+                -- Not enough time for even a fast filler without risking the debuff dropping. Wait briefly.
+                local timeToKill = timeLeft - abCastTime
+                return "WAIT", "Arcane Blast", string.format("WAIT (%.1fs)", timeToKill), 1, 0.5, 0
+            end
         end
     end
 end
-
--- Need to find where combat starts to call ResetInitialCombatPhase()
--- For now, assuming that combat start is implicitly handled by ttd > 990 in UpdateCombatPhase.
--- If a more direct combat start event is available, ResetInitialCombatPhase() should be called there.

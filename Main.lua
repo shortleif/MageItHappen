@@ -1,7 +1,7 @@
 local addonName, addonTable = ...
 
 local DebugFrame = CreateFrame("Frame", "MIH_DebugFrame", UIParent, "BackdropTemplate")
-DebugFrame:SetSize(220, 160)
+DebugFrame:SetSize(220, 190)
 DebugFrame:SetPoint("RIGHT", -50, 0)
 DebugFrame:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -81,13 +81,15 @@ Launcher:SetScript("OnUpdate", function(self, elapsed)
         DebugFrame:Show()
         local di = addonTable.DebugInfo or {}
         local str = string.format(
-            "Current Mana: %d\nEmerald: %d\nPotion: %d\nEvocation: %d\nVT Regen (Expected): %d\n\nTotal Available: %d", 
+            "Current Mana: %d\nEmerald: %d\nPotion: %d\nEvocation: %d\nVT Regen (Expected): %d\n\nTotal Available: %d\nSerpent-Coil: %s\nT5 2P: %s", 
             di.currentMana or 0,
             di.emeraldMana or 0,
             di.potionMana or 0,
             di.evoMana or 0,
             di.vtMana or 0,
-            di.totalMana or 0
+            di.totalMana or 0,
+            tostring(di.hasSerpent == true),
+            tostring(di.hasT5 == true)
         )
         debugText:SetText(str)
     else

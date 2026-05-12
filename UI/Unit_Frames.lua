@@ -97,10 +97,6 @@ local function CreateUnitFrame(unit, name, width, height)
     f.nameText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE") 
     f.nameText:SetPoint("LEFT", 6, 0)
 
-    f.valText = f.hp:CreateFontString(nil, "OVERLAY")
-    f.valText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
-    f.valText:SetPoint("RIGHT", -6, 0)
-
     if unit == "target" then
         f.threatText = f.hp:CreateFontString(nil, "OVERLAY")
         f.threatText:SetFont(addonTable.MainFont, mainFontSize - 5, "OUTLINE")
@@ -121,7 +117,7 @@ local function CreateUnitFrame(unit, name, width, height)
     elseif unit == "pet" then
         f.timerText = f.hp:CreateFontString(nil, "OVERLAY")
         f.timerText:SetFont(addonTable.MainFont, mainFontSize, "OUTLINE")
-        f.timerText:SetPoint("BOTTOM", f, "BOTTOM", 0, -80)
+        f.timerText:SetPoint("BOTTOM", f, "BOTTOM", 0, -40)
     end
 
     if unit ~= "player" and unit ~= "targettarget" then
@@ -226,7 +222,6 @@ local function UpdateFrame(f)
     local hp, hpMax = UnitHealth(unit), UnitHealthMax(unit)
     f.hp:SetMinMaxValues(0, hpMax > 0 and hpMax or 1); f.hp:SetValue(hp)
     f.nameText:SetText(UnitName(unit))
-    f.valText:SetText(hpMax > 0 and (tostring(math.floor((hp/hpMax)*100)).."%") or "0%")
     
     if f.mp then
         local mp, mpMax = UnitPower(unit), UnitPowerMax(unit)

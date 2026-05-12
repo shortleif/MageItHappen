@@ -32,6 +32,11 @@ Tracker.isActive = false
 local function OnUpdate(self, elapsed)
     if not self.isActive then return end
     
+    -- Throttle execution to 20 fps to save CPU processing power
+    self.timer = (self.timer or 0) + elapsed
+    if self.timer < 0.05 then return end
+    self.timer = 0
+
     -- Fetch the state from the Logic engine
     local state, spellName, text, r, g, b = addonTable.Rotation.GetState()
     

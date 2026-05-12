@@ -39,6 +39,7 @@ Config:SetScript("OnEvent", function(self, event, name)
         vtMP5 = 200,
         vtRollingAverageWindow = 30, -- Default to 30 seconds
         debugMode = false,
+        handoffBuffer = 0.2,
     }
 
     for k, v in pairs(defaults) do
@@ -109,6 +110,32 @@ local function CreateSlider(name, label, minVal, maxVal, dbKey, x, y)
         local val = math.floor(value)
         MageItHappenDB[dbKey] = val
         text:SetText(label .. ": " .. val .. "s")
+    end)
+    return slider
+end
+
+-- Helper: Decimal Slider (Allows fractional steps like 0.1)
+local function CreateDecimalSlider(name, label, minVal, maxVal, stepVal, dbKey, x, y)
+    local slider = CreateFrame("Slider", name, Content, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", x + 28, y)
+    slider:SetMinMaxValues(minVal, maxVal)
+    slider:SetValueStep(stepVal)
+    slider:SetObeyStepOnDrag(true)
+    slider:SetSize(180, 20)
+    
+    local text = _G[name .. "Text"]
+    text:SetTextColor(1, 1, 1)
+    
+    slider:SetScript("OnShow", function(self)
+        local val = MageItHappenDB[dbKey] or minVal
+        self:SetValue(val)
+        text:SetText(string.format("%s: %.1fs", label, val))
+    end)
+    
+    slider:SetScript("OnValueChanged", function(self, value)
+        local val = math.floor((value / stepVal) + 0.5) * stepVal
+        MageItHappenDB[dbKey] = val
+        text:SetText(string.format("%s: %.1fs", label, val))
     end)
     return slider
 end
@@ -204,6 +231,7 @@ function Config:InitializeUI()
     CreateCheckbox("Account for Vampiric Touch", "trackVT", 300, -365)
     CreateSlider("MIH_VT_Slider", "Estimated VT MP5", 0, 500, "vtMP5", 300, -410)
     CreateSlider("MIH_VTRaw_Slider", "VT Rolling Average Window (s)", 10, 60, "vtRollingAverageWindow", 300, -460)
+    CreateDecimalSlider("MIH_HandoffBuffer_Slider", "Handoff Buffer", 0.0, 1.0, 0.1, "handoffBuffer", 300, -510)
 
     -- Visual Cooldown Saturation moved slightly to avoid overlap
     CreateHeader("Visuals", 16, -305)
