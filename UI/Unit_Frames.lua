@@ -135,6 +135,16 @@ local function CreateUnitFrame(unit, name, width, height)
         f.cb.text:SetPoint("CENTER")
     end
 
+    f:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+        GameTooltip:SetUnit(self:GetAttribute("unit"))
+        GameTooltip:Show()
+    end)
+
+    f:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
     return f
 end
 

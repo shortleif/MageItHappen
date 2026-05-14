@@ -24,6 +24,23 @@ if addonTable.MainFont then
     Tracker.Text:SetFont(addonTable.MainFont, 14, "OUTLINE")
 end
 
+-- Handoff Success Glow Animation
+Tracker.Glow = Tracker:CreateTexture(nil, "OVERLAY")
+Tracker.Glow:SetTexture("Interface\\Buttons\\WHITE8X8")
+Tracker.Glow:SetAllPoints()
+Tracker.Glow:SetVertexColor(0, 1, 1) -- Cyan matches the Arcane aesthetic
+Tracker.Glow:SetBlendMode("ADD")
+Tracker.Glow:SetAlpha(0)
+
+Tracker.GlowAnim = Tracker.Glow:CreateAnimationGroup()
+local alpha1 = Tracker.GlowAnim:CreateAnimation("Alpha")
+alpha1:SetFromAlpha(0); alpha1:SetToAlpha(0.6)
+alpha1:SetDuration(0.1); alpha1:SetOrder(1)
+
+local alpha2 = Tracker.GlowAnim:CreateAnimation("Alpha")
+alpha2:SetFromAlpha(0.6); alpha2:SetToAlpha(0)
+alpha2:SetDuration(0.4); alpha2:SetOrder(2)
+
 -- Initial State
 Tracker:Hide()
 Tracker.isActive = false
@@ -39,6 +56,14 @@ local function OnUpdate(self, elapsed)
 
     -- Fetch the state from the Logic engine
     local state, spellName, text, r, g, b = addonTable.Rotation.GetState()
+    
+    -- Detect successful HANDOFF queue
+    local currentCast = UnitCastingInfo("player")
+    if self.prevState == "HANDOFF" and state ~= "HANDOFF" and currentCast == "Arcane Blast" then
+        self.GlowAnim:Stop()
+        self.GlowAnim:Play()
+    end
+    self.prevState = state
     
     -- Update Colors
     self:SetBackdropColor(r, g, b, 0.8)

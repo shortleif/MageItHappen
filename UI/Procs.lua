@@ -64,6 +64,60 @@ clearcastingText:SetText("CLEARCASTING")
 clearcastingText:Hide()
 
 -- 4. Update Loop
+---------------------------
+-- 4. Totem Tracker
+---------------------------
+local TotemTracker = CreateFrame("Frame", "MIH_TotemTracker", UIParent)
+TotemTracker:SetSize(150, 24)
+TotemTracker:SetFrameStrata("BACKGROUND") -- Ensure it renders below food/drink icons
+if _G["MageCustomCastbar"] then
+    TotemTracker:SetPoint("LEFT", _G["MageCustomCastbar"], "LEFT", 0, 0)
+elseif _G["MIH_HealthBarContainer"] then
+    TotemTracker:SetPoint("BOTTOMLEFT", _G["MIH_HealthBarContainer"], "TOPLEFT", 0, 18)
+else
+    TotemTracker:SetPoint("CENTER", -150, -50)
+end
+
+local totemIcons = {}
+local SHAMAN_TOTEMS = {
+    ["Mana Spring"] = true,
+    ["Wrath of Air"] = true,
+    ["Tremor Totem"] = true,
+    ["Grounding Totem Effect"] = true,
+    ["Tranquil Air"] = true,
+    ["Healing Stream"] = true,
+    ["Cleansing Totem"] = true,
+    ["Windfury Totem"] = true,
+}
+
+local function GetTotemIcon(index)
+    if not totemIcons[index] then
+        local b = CreateFrame("Button", nil, TotemTracker, "BackdropTemplate")
+        b:SetSize(24, 24)
+        b:SetPoint("LEFT", (index - 1) * (24 + 4), 0)
+        
+        b.icon = b:CreateTexture(nil, "ARTWORK")
+        b.icon:SetAllPoints()
+        b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        
+        b:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1})
+        b:SetBackdropBorderColor(0, 0.5, 1, 1) -- Blue border to identify Shaman buffs
+        
+        b:SetScript("OnEnter", function(self)
+            if self.auraIndex then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetUnitAura("player", self.auraIndex, "HELPFUL")
+                GameTooltip:Show()
+            end
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        
+        totemIcons[index] = b
+    end
+    return totemIcons[index]
+end
+
+-- 5. Update Loop
 Procs:SetScript("OnUpdate", function(self, elapsed)
     self.timer = (self.timer or 0) + elapsed
     if self.timer < 0.1 then return end
@@ -120,5 +174,30 @@ Procs:SetScript("OnUpdate", function(self, elapsed)
         if clearcastingText:IsShown() then
             clearcastingText:Hide()
         end
+    end
+
+    ---------------------------
+    -- LOGIC: Shaman Totems
+    ---------------------------
+    local activeTotems = {}
+    for i = 1, 40 do
+        local name, icon = UnitAura("player", i, "HELPFUL")
+        if not name then break end
+        
+        if SHAMAN_TOTEMS[name] or string.find(name, "Totem") then
+            table.insert(activeTotems, {name = name, icon = icon, index = i})
+        end
+    end
+    
+    -- Display logic
+    for i, data in ipairs(activeTotems) do
+        local b = GetTotemIcon(i)
+        b.icon:SetTexture(data.icon)
+        b.auraIndex = data.index
+        b:Show()
+    end
+    
+    for i = #activeTotems + 1, #totemIcons do
+        totemIcons[i]:Hide()
     end
 end)

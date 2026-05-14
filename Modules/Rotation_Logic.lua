@@ -6,9 +6,14 @@ addonTable.DebugInfo = {}
 -- Global flag to track if we are in the initial phase of combat for mana calculations
 local isInInitialCombatPhase = true
 
+-- VT Mana Return Rolling Average
+local vtManaReturnHistory = {}
+local lastVtPruneTime = 0
+
 -- Function to reset the initial combat phase flag, to be called when combat starts
 function Rotation.ResetInitialCombatPhase()
     isInInitialCombatPhase = true
+    wipe(vtManaReturnHistory)
 end
 
 -- Helper to update the initial combat phase flag based on TTD
@@ -19,9 +24,6 @@ local function UpdateCombatPhase(ttd)
         isInInitialCombatPhase = false
     end
 end
-
--- VT Mana Return Rolling Average
-local vtManaReturnHistory = {}
 
 -- Exposed so a combat log tracker can push mana return data
 function Rotation.AddVtManaReturnData(manaReturned)
@@ -41,14 +43,45 @@ function Rotation.AddVtManaReturnData(manaReturned)
 end
 
 local function CalculateVtRollingAverage()
-    if #vtManaReturnHistory == 0 then return 0 end
+    local vtMP5 = (MageItHappenDB and MageItHappenDB.vtMP5) or 200
+    local staticMPS = vtMP5 / 5
     
-    local totalMana = 0
-    for _, data in ipairs(vtManaReturnHistory) do
-        totalMana = totalMana + data.mana
+    local currentTime = GetTime()
+    
+    -- Actively prune old data occasionally (fixes bug where VT drops off)
+    if currentTime - lastVtPruneTime > 1.0 then
+        local vtRollingAverageWindow = (MageItHappenDB and MageItHappenDB.vtRollingAverageWindow) or 30
+        local cutoffTime = currentTime - vtRollingAverageWindow
+        
+        local i = 1
+        while i <= #vtManaReturnHistory do
+            if vtManaReturnHistory[i].timestamp < cutoffTime then
+                table.remove(vtManaReturnHistory, i)
+            else
+                i = i + 1
+            end
+        end
+        lastVtPruneTime = currentTime
+    end
+
+    if #vtManaReturnHistory == 0 then 
+        return staticMPS 
     end
     
-    return totalMana / #vtManaReturnHistory
+    local totalMana = 0
+    local oldestTime = currentTime
+    
+    for _, data in ipairs(vtManaReturnHistory) do
+        totalMana = totalMana + data.mana
+        if data.timestamp < oldestTime then
+            oldestTime = data.timestamp
+        end
+    end
+    
+    local timeWindow = currentTime - oldestTime
+    if timeWindow < 5 then return staticMPS end
+    
+    return totalMana / timeWindow
 end
 
 -- Constant Variables
@@ -131,6 +164,69 @@ local function GetABDebuffInfo()
     return stacks, timeLeft
 end
 
+-- Helper: Get time until next action is available (ABC Forecasting)
+local function GetBusyTime()
+    local now = GetTime()
+    local busyTime = 0
+    local currentCast = nil
+
+    local name, _, _, startTime, endTime = UnitCastingInfo("player")
+    if name and endTime then
+        busyTime = (endTime / 1000) - now
+        currentCast = name
+    else
+        name, _, _, startTime, endTime = UnitChannelInfo("player")
+        if name and endTime then
+            busyTime = (endTime / 1000) - now
+            currentCast = name
+        end
+    end
+
+    -- Check GCD
+    local start, duration = GetSpellCooldown(FB_SPELL_ID)
+    if start and start > 0 and duration > 0 then
+        local gcdRemaining = (start + duration) - now
+        if gcdRemaining > busyTime then
+            busyTime = gcdRemaining
+        end
+    end
+
+    return math.max(0, busyTime), currentCast
+end
+
+-- ==========================================
+-- Global State & Inventory Caching
+-- ==========================================
+local LogicFrame = CreateFrame("Frame")
+local cachedT5, cachedSerpent = false, false
+local cachedEmeralds, cachedPots = 0, 0
+local playerGUID = nil
+
+LogicFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+LogicFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+LogicFrame:RegisterEvent("BAG_UPDATE")
+LogicFrame:RegisterEvent("ENCOUNTER_START")
+LogicFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+LogicFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+
+LogicFrame:SetScript("OnEvent", function(self, event, ...)
+    if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_EQUIPMENT_CHANGED" then
+        cachedT5 = HasTirisfal2P()
+        cachedSerpent = IsEquippedItem(SERPENT_COIL_BRAID_ID)
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "BAG_UPDATE" then
+        cachedEmeralds = GetItemCount(MANA_EMERALD_ID)
+        cachedPots = GetItemCount(MANA_POT_ID)
+    elseif event == "ENCOUNTER_START" or event == "PLAYER_REGEN_DISABLED" then
+        Rotation.ResetInitialCombatPhase()
+        playerGUID = playerGUID or UnitGUID("player")
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+        local _, subEvent, _, _, _, _, _, destGUID, _, _, _, _, spellName, _, amount, powerType = CombatLogGetCurrentEventInfo()
+        if subEvent == "SPELL_ENERGIZE" and destGUID == playerGUID and powerType == 0 and spellName == "Vampiric Touch" then
+            Rotation.AddVtManaReturnData(amount or 0)
+        end
+    end
+end)
+
 -- Helper: Get current Cast Time in seconds
 local function GetSpellCastTime(spellName)
     local spellInfo = C_Spell.GetSpellInfo(spellName)
@@ -149,9 +245,8 @@ local function GetABManaCost()
     end
     
     -- NEW: Add 39 flat mana if 2p Tirisfal is equipped
-    local hasT5 = HasTirisfal2P()
-    addonTable.DebugInfo.hasT5 = hasT5
-    if hasT5 then
+    addonTable.DebugInfo.hasT5 = cachedT5
+    if cachedT5 then
         cost = cost + 39
     end
     
@@ -163,19 +258,15 @@ local function GetTotalAvailableMana()
     local currentMana = UnitPower("player", Enum.PowerType.Mana)
     local maxMana = UnitPowerMax("player", Enum.PowerType.Mana)
     
-    local emeraldCount = GetItemCount(MANA_EMERALD_ID)
-    local potionCount = GetItemCount(MANA_POT_ID)
-    
-    local emeraldMana = (emeraldCount > 0) and MANA_EMERALD_REGEN or 0
+    local emeraldMana = (cachedEmeralds > 0) and MANA_EMERALD_REGEN or 0
     
     -- NEW: Apply Serpent-Coil Braid 25% bonus
-    local hasSerpent = IsEquippedItem(SERPENT_COIL_BRAID_ID)
-    addonTable.DebugInfo.hasSerpent = hasSerpent
-    if hasSerpent then
+    addonTable.DebugInfo.hasSerpent = cachedSerpent
+    if cachedSerpent then
         emeraldMana = emeraldMana * 1.25
     end
     
-    local potionMana = (potionCount > 0) and MANA_POT_REGEN or 0
+    local potionMana = (cachedPots > 0) and MANA_POT_REGEN or 0
     
     local total = currentMana + emeraldMana + potionMana
     
@@ -233,6 +324,17 @@ function Rotation.GetState()
         ttd = addonTable.TTD_Core.GetCurrentTTD()
     end
     
+    -- Forecast state for the "Next Spell" (Always Be Casting)
+    local busyTime, currentCast = GetBusyTime()
+    
+    -- If we are currently channeling Evocation, tell the player to finish it
+    if currentCast == "Evocation" then
+        return "EVOCATING", "Evocation", "EVOCATING", 0, 0.8, 1
+    end
+    
+    -- Project TTD forward to when we can actually cast our next spell
+    ttd = math.max(0, ttd - busyTime)
+
     -- Update combat phase status
     UpdateCombatPhase(ttd)
     
@@ -240,27 +342,37 @@ function Rotation.GetState()
     local abCastTime = GetSpellCastTime("Arcane Blast")
     local abManaCost = GetABManaCost()
     local vtMana = 0
+    local shadowPriestFound = HasShadowPriest()
     
-    -- 1. Initial Combat Phase Mana Calculation
-    if isInInitialCombatPhase then
-        -- Use static mana return for VT during the initial phase
-        if MageItHappenDB.trackVT and ttd > 0 and HasShadowPriest() then
-            local vtMP5 = MageItHappenDB.vtMP5 or 200
-            -- Add a single tick's worth of mana for the initial phase, and log it for the rolling average later.
-            vtMana = vtMP5 / 5 * 1 
-            totalMana = totalMana + vtMana
-        end
-    else
-        -- Use rolling average for VT mana return after initial phase
-        if MageItHappenDB.trackVT and ttd > 0 and HasShadowPriest() then
-            vtMana = CalculateVtRollingAverage()
-            totalMana = totalMana + vtMana
-        end
+    -- 1. VT Mana Calculation
+    if MageItHappenDB.trackVT and ttd > 0 and shadowPriestFound then
+        local mps = isInInitialCombatPhase and ((MageItHappenDB.vtMP5 or 200) / 5) or CalculateVtRollingAverage()
+        vtMana = mps * ttd
+        totalMana = totalMana + vtMana
     end
     
     addonTable.DebugInfo.vtMana = vtMana
     addonTable.DebugInfo.totalMana = totalMana
+    addonTable.DebugInfo.hasShadowPriest = shadowPriestFound
     
+    -- Forecast Arcane Blast Debuff
+    local stacks, timeLeft = GetABDebuffInfo()
+    
+    if currentCast == "Arcane Blast" then
+        -- When the current Arcane Blast finishes, it adds a stack and refreshes the timer
+        stacks = math.min(3, stacks + 1)
+        timeLeft = AB_DEBUFF_DURATION
+    else
+        -- Debuff decays while we are busy casting something else or on GCD
+        if timeLeft > 0 then
+            timeLeft = timeLeft - busyTime
+            if timeLeft <= 0 then
+                stacks = 0
+                timeLeft = 0
+            end
+        end
+    end
+
     -- 0. Evocation Emergency Check (moved after mana calculation to use updated totalMana)
     local currentMana = UnitPower("player", Enum.PowerType.Mana)
     local maxMana = UnitPowerMax("player", Enum.PowerType.Mana)
@@ -286,8 +398,6 @@ function Rotation.GetState()
     end
     
     -- 2. Conserve Phase Logic
-    local stacks, timeLeft = GetABDebuffInfo()
-    
     if stacks < 3 then
         return "BUILD", "Arcane Blast", "BUILDING AB", 0, 0, 0 
     else

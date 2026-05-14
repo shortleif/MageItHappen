@@ -1,7 +1,7 @@
 local addonName, addonTable = ...
 
 local DebugFrame = CreateFrame("Frame", "MIH_DebugFrame", UIParent, "BackdropTemplate")
-DebugFrame:SetSize(220, 190)
+DebugFrame:SetSize(220, 205)
 DebugFrame:SetPoint("RIGHT", -50, 0)
 DebugFrame:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -56,6 +56,7 @@ Launcher:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
+local debugTimer = 0
 Launcher:SetScript("OnUpdate", function(self, elapsed)
     -- 1. Update Core Math
     if addonTable.TTD_Core then
@@ -79,19 +80,30 @@ Launcher:SetScript("OnUpdate", function(self, elapsed)
     -- 4. Update Debug Display
     if MageItHappenDB and MageItHappenDB.debugMode then
         DebugFrame:Show()
-        local di = addonTable.DebugInfo or {}
-        local str = string.format(
-            "Current Mana: %d\nEmerald: %d\nPotion: %d\nEvocation: %d\nVT Regen (Expected): %d\n\nTotal Available: %d\nSerpent-Coil: %s\nT5 2P: %s", 
-            di.currentMana or 0,
-            di.emeraldMana or 0,
-            di.potionMana or 0,
-            di.evoMana or 0,
-            di.vtMana or 0,
-            di.totalMana or 0,
-            tostring(di.hasSerpent == true),
-            tostring(di.hasT5 == true)
-        )
-        debugText:SetText(str)
+        
+        debugTimer = debugTimer + elapsed
+        if debugTimer >= 0.1 then
+            -- Force the logic engine to calculate even if the rotation tracker is hidden
+            if addonTable.Rotation and addonTable.Rotation.GetState then
+                addonTable.Rotation.GetState()
+            end
+            
+            local di = addonTable.DebugInfo or {}
+            local str = string.format(
+                "Current Mana: %d\nEmerald: %d\nPotion: %d\nEvocation: %d\nVT Regen (Expected): %d\n\nTotal Available: %d\nSerpent-Coil: %s\nT5 2P: %s\nShadow Priest found: %s", 
+                di.currentMana or 0,
+                di.emeraldMana or 0,
+                di.potionMana or 0,
+                di.evoMana or 0,
+                di.vtMana or 0,
+                di.totalMana or 0,
+                tostring(di.hasSerpent == true),
+                tostring(di.hasT5 == true),
+                tostring(di.hasShadowPriest == true)
+            )
+            debugText:SetText(str)
+            debugTimer = 0
+        end
     else
         DebugFrame:Hide()
     end
